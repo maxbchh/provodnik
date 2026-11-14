@@ -86,3 +86,14 @@
 @media(max-width:620px){
   .grade-table .homework-row td{min-width:100px}
 }
+
+
+/* LNP-only grade columns */
+.grade-column-tools{display:flex;align-items:center;gap:9px;margin:14px 0}
+.grade-column-tools input{max-width:340px}
+.grade-column-tools .secondary{white-space:nowrap}
+.grade-only-heading{background:#eef4fb!important;border-top:2px solid #9bb8d8!important}
+.column-title-button{border:0;background:transparent;color:#315f91;font:inherit;font-weight:700;cursor:pointer;padding:2px 4px;border-radius:5px}
+.column-title-button:hover{background:#dceafa}
+.column-title-edit{min-width:90px!important;padding:6px!important;text-align:center;font-size:11px!important}
+@media(max-width:620px){.grade-column-tools{display:grid}.grade-column-tools input{max-width:none}.grade-column-tools button{justify-self:stretch}}
