@@ -232,13 +232,8 @@ input[type=file]{padding:9px;background:#fbfcfe}
   white-space:pre-wrap;
   overflow-wrap:anywhere;
 }
-.fraction-preset-grid{
-  display:grid;
-  grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:8px;
-  margin-top:9px;
-}
-.fraction-preset-grid .quick-grade{min-height:42px;font-size:14px}
+.fraction-toggle-active{border-style:solid;border-color:#397bc8;background:#edf4ff;color:#2867b2}
+.fraction-hint{display:block;margin-top:9px;color:#647b96;font-size:11px;line-height:1.5}
 .grade-modal .modal-label{margin:14px 0;color:#536176}
 .grade-manual-input,.grade-comment-input{width:100%}
 .grade-comment-input{min-height:82px;line-height:1.5}
