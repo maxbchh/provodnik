@@ -235,5 +235,5 @@ input[type=file]{padding:9px;background:#fbfcfe}
 .fraction-toggle-active{border-style:solid;border-color:#397bc8;background:#edf4ff;color:#2867b2}
 .fraction-hint{display:block;margin-top:9px;color:#647b96;font-size:11px;line-height:1.5}
 .grade-modal .modal-label{margin:14px 0;color:#536176}
-.grade-comment-input{width:100%}
+.grade-manual-input,.grade-comment-input{width:100%}
 .grade-comment-input{min-height:82px;line-height:1.5}
