@@ -264,38 +264,29 @@ export default function App(){
   finally{setDeletingTaskId(null);}
  }
  async function openTaskAttachment(path:string){const {data,error}=await supabase.storage.from('homework-files').createSignedUrl(path,120);if(error){setError('Не удалось открыть файл: '+error.message);return;}window.open(data.signedUrl,'_blank','noopener,noreferrer');}
- function saveDoc(e:FormEvent){e.preventDefault();if(!docStudent)return;const old=db.documents.find(x=>x.studentId===docStudent);const item:DocRecord={id:old?.id||uid(),studentId:docStudent,brought:docBrought,broughtList:docBroughtList.trim(),issuedList:docIssued.trim(),missingList:docMissing.trim(),comment:docComment.trim(),uniformIssued:docUniformIssued,uniformReturned:docUniformReturned,uniformPickupAt:docPickupAt?dateInputToIso(docPickupAt):'',uniformNote:docUniformNote.trim()};void patch({documents:old?db.documents.map(x=>x.studentId===docStudent?item:x):[...db.documents,item]});setDocEditingStudent('');setEditId('');flash('Карточка проводника сохранена');}
+ async function saveDoc(e:FormEvent){e.preventDefault();if(!docStudent)return;const old=db.documents.find(x=>x.studentId===docStudent);const item:DocRecord={id:old?.id||uid(),studentId:docStudent,brought:docBrought,broughtList:docBroughtList.trim(),issuedList:docIssued.trim(),missingList:docMissing.trim(),comment:docComment.trim(),uniformIssued:docUniformIssued,uniformReturned:docUniformReturned,uniformPickupAt:docPickupAt?dateInputToIso(docPickupAt):'',uniformNote:docUniformNote.trim()};const saved=await patch({documents:old?db.documents.map(x=>x.studentId===docStudent?item:x):[...db.documents,item]});if(!saved)return;setDocEditingStudent('');setEditId('');await loadCloudData(current);flash('Карточка проводника сохранена');}
  function editDoc(d:DocRecord){setDocEditingStudent(d.studentId);setDocStudent(d.studentId);setDocBrought(d.brought);setDocBroughtList(d.broughtList);setDocIssued(d.issuedList);setDocMissing(d.missingList);setDocComment(d.comment);setDocUniformIssued(d.uniformIssued);setDocUniformReturned(d.uniformReturned);setDocPickupAt(dateInputValue(d.uniformPickupAt));setDocUniformNote(d.uniformNote);}
  function cancelDocEdit(){setDocEditingStudent('');setDocStudent('');setDocBrought(false);setDocBroughtList('');setDocIssued('');setDocMissing('');setDocComment('');setDocUniformIssued(false);setDocUniformReturned(false);setDocPickupAt('');setDocUniformNote('');}
  function emptyDocFor(studentId:string):DocRecord{return {id:'',studentId,brought:false,broughtList:'',issuedList:'',missingList:'',comment:'',uniformIssued:false,uniformReturned:false,uniformPickupAt:'',uniformNote:''};}
  async function updateStudentDocumentConfirmation(field:'documents'|'uniform',checked:boolean){
-  if(!profile||profile.role!=='viewer'||!profile.conductor_id||!current)return;
-  if(savingDocumentConfirmation)return;
-  setSavingDocumentConfirmation(true);setError('');setNotice('');
-  const conductorId=profile.conductor_id;
-  const previous=db.documentConfirmations.find(x=>x.conductorId===conductorId);
-  const updated:DocumentConfirmation={
-   conductorId,
-   documentsSubmitted:field==='documents'?checked:!!previous?.documentsSubmitted,
-   documentsSubmittedAt:field==='documents'?(checked?(previous?.documentsSubmittedAt||dateNow()):null):(previous?.documentsSubmittedAt||null),
-   uniformPickedUp:field==='uniform'?checked:!!previous?.uniformPickedUp,
-   uniformPickedUpAt:field==='uniform'?(checked?(previous?.uniformPickedUpAt||dateInputToIso(todayDateInput())):null):(previous?.uniformPickedUpAt||null)
-  };
-  try{
-   const {error}=await supabase.from('document_confirmations').upsert({
-    conductor_id:updated.conductorId,
-    documents_submitted:updated.documentsSubmitted,
-    documents_submitted_at:updated.documentsSubmittedAt,
-    uniform_picked_up:updated.uniformPickedUp,
-    uniform_picked_up_at:updated.uniformPickedUpAt
-   },{onConflict:'conductor_id'});
-   if(error)throw error;
-   setDb(previousDb=>({...previousDb,documentConfirmations:[...previousDb.documentConfirmations.filter(x=>x.conductorId!==conductorId),updated]}));
-   flash(field==='documents'?(checked?'Отмечено: документы на форму сданы':'Отметка о сдаче документов снята'):(checked?'Отмечено: форма забрана':'Отметка о получении формы снята'));
-  }catch(e){setError('Не удалось сохранить отметку: '+((e as Error).message||'ошибка'));}
-  finally{setSavingDocumentConfirmation(false);}
- }
- function saveNote(e:FormEvent){e.preventDefault();if(!user||!noteStudent||!noteText.trim())return;patch({notes:[{id:uid(),studentId:noteStudent,body:noteText.trim(),date:dateNow()},...db.notes]});setNoteText('');flash('Примечание добавлено');}
+   if(!profile||profile.role!=='viewer'||!profile.conductor_id||!current)return;
+   if(savingDocumentConfirmation)return;
+   setSavingDocumentConfirmation(true);setError('');setNotice('');
+   const conductorId=profile.conductor_id;
+   try{
+    const {data,error}=await supabase.rpc('update_public_document_confirmation',{p_conductor_id:conductorId,p_field:field,p_checked:checked});
+    if(error)throw error;
+    const updated=data as DocumentConfirmation;
+    setDb(previousDb=>{
+     const oldDoc=previousDb.documents.find(x=>x.studentId===conductorId)||emptyDocFor(conductorId);
+     const nextDoc:DocRecord={...oldDoc,brought:field==='documents'?checked:oldDoc.brought,uniformIssued:field==='uniform'?checked:oldDoc.uniformIssued};
+     return {...previousDb,documents:[...previousDb.documents.filter(x=>x.studentId!==conductorId),nextDoc],documentConfirmations:[...previousDb.documentConfirmations.filter(x=>x.conductorId!==conductorId),updated]};
+    });
+    flash(field==='documents'?(checked?'Документы собраны':'Отметка о сдаче документов снята'):(checked?'Форма выдана':'Отметка о получении формы снята'));
+   }catch(e){setError('Не удалось сохранить отметку: '+((e as Error).message||'ошибка'));}
+   finally{setSavingDocumentConfirmation(false);}
+  }
+  function saveNote(e:FormEvent){e.preventDefault();if(!user||!noteStudent||!noteText.trim())return;patch({notes:[{id:uid(),studentId:noteStudent,body:noteText.trim(),date:dateNow()},...db.notes]});setNoteText('');flash('Примечание добавлено');}
  function editMatrixCell(studentId:string,lessonId:string){const existing=db.grades.find(g=>g.studentId===studentId&&g.lessonId===lessonId);setSelectedCell({studentId,lessonId});setCellValue(existing&&existing.mark!=='points'?(existing.mark==='Н'?'Н':existing.mark==='cross'?'':String(existing.score??'')):'');setCellComment(existing?.comment||'');setFractionMode(false);setFractionFirst('');setPointsMode(existing?.mark==='points');setPointsInput(existing?.mark==='points'?String(existing.score??''):'');setPointsGrade(existing?.pointsGrade?String(existing.pointsGrade):'10');}
  function chooseMatrixValue(value:string){if(fractionMode){if(!/^(?:[1-9]|10)$/.test(value)){setError('Для дробной отметки выбери две числовые оценки.');return;}if(!fractionFirst){setFractionFirst(value);return;}setCellValue(`${fractionFirst}/${value}`);setFractionFirst('');setFractionMode(false);return;}setCellValue(value);setFractionFirst('');}
  async function saveMatrixCell(){if(!selectedCell)return;const {studentId,lessonId}=selectedCell;const existing=db.grades.find(g=>g.studentId===studentId&&g.lessonId===lessonId);if(pointsMode){const raw=pointsInput.trim().replace(',','.');const value=Number(raw);const grade=Number(pointsGrade);if(!raw||!Number.isFinite(value)||value<0){setError('Введи количество баллов — ноль или положительное число.');return;}if(!Number.isInteger(grade)||grade<1||grade>10){setError('Выбери отметку от 1 до 10, соответствующую баллам.');return;}const item:Grade={id:existing?.id||uid(),studentId,lessonId,subject:db.lessons.find(l=>l.id===lessonId)?.title||'Занятие',score:raw,mark:'points',pointsGrade:grade,comment:cellComment.trim(),date:dateNow()};const saved=await patch({grades:existing?db.grades.map(g=>g.id===existing.id?item:g):[...db.grades,item]});if(!saved)return;setSelectedCell(null);flash('Баллы и соответствующая отметка сохранены');return;}if(fractionMode){setError('Выбери второе число для дробной отметки или отмени её.');return;}const normalized=cellValue.trim().toUpperCase();const fraction=normalized.match(/^(\d+)\/(\d+)$/);const validScore=/^(?:[1-9]|10)(?:\/(?:[1-9]|10))?$/.test(normalized)&&(!fraction||Number(fraction[2])>0);if(normalized===''){const saved=await patch({grades:db.grades.filter(g=>!(g.studentId===studentId&&g.lessonId===lessonId))});if(!saved)return;flash('Ячейка очищена');}else if(normalized==='Н'||normalized==='ЗАЧ'||normalized==='НЕЗАЧ'||validScore){const storedValue=normalized==='ЗАЧ'?'Зач':normalized==='НЕЗАЧ'?'Незач':normalized;const mark:Grade['mark']=normalized==='Н'?'Н':normalized==='ЗАЧ'?'pass':normalized==='НЕЗАЧ'?'fail':'grade';const item:Grade={id:existing?.id||uid(),studentId,lessonId,subject:db.lessons.find(l=>l.id===lessonId)?.title||'Занятие',score:normalized==='Н'?null:storedValue,mark,pointsGrade:null,comment:cellComment.trim(),date:dateNow()};const saved=await patch({grades:existing?db.grades.map(g=>g.id===existing.id?item:g):[...db.grades,item]});if(!saved)return;flash(normalized==='Н'?'Отсутствие отмечено':normalized==='ЗАЧ'?'Зачёт отмечен':normalized==='НЕЗАЧ'?'Незачёт отмечен':'Оценка сохранена');}else{setError('Выбери обычную оценку от 1 до 10, «Зач», «Незач» или дробную отметку. Для баллов используй отдельный режим «Баллы».');return;}setSelectedCell(null);}
@@ -331,17 +322,19 @@ export default function App(){
 
 function PublicDiaryPage({data,error}:{data:PublicDiaryData|null;error:string}){
  const [confirmation,setConfirmation]=useState<DocumentConfirmation|null>(data?.documentConfirmation||null);
+ const [documentCard,setDocumentCard]=useState<NonNullable<PublicDiaryData['document']>|null>(data?.document||null);
  const [saving,setSaving]=useState(false);
  const [feedback,setFeedback]=useState('');
  if(error)return <main className="auth-wrap"><section className="auth-card"><h1>Дневник недоступен</h1><p className="alert error">{error}</p><a className="link" href="/provodnik/">На главную</a></section></main>;
  if(!data)return <main className="auth-wrap"><section className="auth-card"><p>Загружаем дневник…</p></section></main>;
- const doc=data.document;
+ const doc=documentCard;
  const changeConfirmation=async(field:'documents'|'uniform',checked:boolean)=>{
   if(saving)return;
   setSaving(true);setFeedback('');
   const {data:updated,error:saveError}=await supabase.rpc('update_public_document_confirmation',{p_conductor_id:data.person.id,p_field:field,p_checked:checked});
   if(saveError){setFeedback('Не удалось сохранить отметку. Попробуй ещё раз.');setSaving(false);return;}
   setConfirmation(updated as DocumentConfirmation);
+  setDocumentCard(previous=>({brought:field==='documents'?checked:!!previous?.brought,broughtList:previous?.broughtList||'',issuedList:previous?.issuedList||'',missingList:previous?.missingList||'',comment:previous?.comment||'',uniformIssued:field==='uniform'?checked:!!previous?.uniformIssued,uniformReturned:!!previous?.uniformReturned,uniformPickupAt:previous?.uniformPickupAt||null,uniformNote:previous?.uniformNote||''}));
   setFeedback('Отметка сохранена');
   setSaving(false);
  };
