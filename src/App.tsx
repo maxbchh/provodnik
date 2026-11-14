@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { supabase } from './supabase';
-import { BookOpen, CalendarDays, ClipboardList, GraduationCap, LogOut, MessageSquareText, Users, Link2, Check, X, TrainFront, LayoutDashboard, FileText, Pencil, Trash2, Plus, BookMarked } from 'lucide-react';
+import { BookOpen, CalendarDays, ClipboardList, GraduationCap, LogOut, MessageSquareText, Users, Link2, Check, X, TrainFront, LayoutDashboard, FileText, Pencil, Trash2, Plus, BookMarked, Send, ShieldCheck } from 'lucide-react';
 
 type Role='owner'|'teacher'|'conductor';
 type User={id:string;name:string;email:string;passwordHash:string;role:Role;linkedUserId?:string|null};
@@ -13,6 +13,7 @@ type Task={id:string;title:string;details:string;due:string;done:boolean;lessonI
 type Attendance={id:string;lessonId:string;studentId:string;status:'present'|'absent'|'late'};
 type DocRecord={id:string;studentId:string;brought:boolean;broughtList:string;issuedList:string;missingList:string;comment:string};
 type Note={id:string;studentId:string;body:string;date:string};
+type ChatMessage={id:string;channel:'moderators'|'students';sender_id:string;sender_name:string;sender_role:'lnp'|'viewer';body:string;created_at:string};
 type PublicDiaryData={person:{id:string;name:string};lessons:{id:string;title:string;date:string;details:string;isGradeColumn?:boolean;isCompleted?:boolean}[];grades:{id:string;lessonId:string|null;score:string;comment:string;date:string}[];attendance:{id:string;lessonId:string;status:'present'|'absent'|'late'}[];homework:{id:string;title:string;details:string;due:string|null;lessonId:string|null;attachments?:TaskAttachment[]}[]};
 type DB={users:User[];grades:Grade[];lessons:Lesson[];tasks:Task[];attendance:Attendance[];documents:DocRecord[];notes:Note[]};
 const blank:DB={users:[],grades:[],lessons:[],tasks:[],attendance:[],documents:[],notes:[]};
@@ -21,7 +22,7 @@ const dateNow=()=>new Date().toISOString();
 async function hashPassword(value:string){const bytes=new TextEncoder().encode(value);const digest=await crypto.subtle.digest('SHA-256',bytes);return Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 const tabs=[
  {id:'grades',label:'Журнал',icon:GraduationCap},{id:'diary',label:'Дневник',icon:BookOpen},
- {id:'people',label:'Редактор проводников и ЛНП',icon:Users},{id:'schedule',label:'Уроки',icon:CalendarDays},
+ {id:'people',label:'Редактор проводников и ЛНП',icon:Users},{id:'chat',label:'Чаты',icon:MessageSquareText},{id:'schedule',label:'Уроки',icon:CalendarDays},
  {id:'documents',label:'Документы и форма',icon:FileText},{id:'notes',label:'Примечания',icon:MessageSquareText},{id:'other',label:'Другое',icon:Link2}
 ] as const;
 type Tab=string;
@@ -63,6 +64,11 @@ export default function App(){
  const [attendanceLesson,setAttendanceLesson]=useState(''),[attendanceStudent,setAttendanceStudent]=useState('');
  const [docStudent,setDocStudent]=useState(''),[docBrought,setDocBrought]=useState(false),[docBroughtList,setDocBroughtList]=useState(''),[docIssued,setDocIssued]=useState(''),[docMissing,setDocMissing]=useState(''),[docComment,setDocComment]=useState('');
  const [noteStudent,setNoteStudent]=useState(''),[noteText,setNoteText]=useState('');
+ const [chatRoom,setChatRoom]=useState<'students'|'moderators'>('students');
+ const [chatMessages,setChatMessages]=useState<ChatMessage[]>([]);
+ const [chatBody,setChatBody]=useState('');
+ const [chatLoading,setChatLoading]=useState(false);
+ const [chatSending,setChatSending]=useState(false);
  const linkedPerson=profile?.conductor_id?db.users.find(u=>u.id===profile.conductor_id):db.users.find(u=>u.linkedUserId===profile?.id)||null;
  const user:User|null=profile?{id:linkedPerson?.id||profile.conductor_id||profile.id,name:linkedPerson?.name||profile.display_name,email:profile.email,passwordHash:'',role:profile.role==='lnp'?'owner':'conductor'}:null;
  const canTeach=user?.role==='owner';
@@ -70,6 +76,7 @@ export default function App(){
  const lnpCount=adminProfiles.filter(p=>p.role==='lnp').length;
  const people=db.users.filter(u=>u.role==='conductor');
  const journalPeople=people;
+ const canUseModeratorChat=profile?.role==='lnp';
  async function loadCloudData(userId:string){
   const [pr,cr,lr,mr,hr,ar,dr,nr]=await Promise.all([
    supabase.from('profiles').select('id,display_name,email,role,conductor_id').eq('id',userId).single(),
@@ -109,6 +116,45 @@ export default function App(){
   const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{if(session){setCurrent(session.user.id);window.setTimeout(()=>{void loadCloudData(session.user.id).catch(e=>setError((e as Error).message));},0);}else{setCurrent('');setProfile(null);setAdminProfiles([]);setIsPrimaryLnp(false);setDb(blank);setLoading(false);}});
   return()=>{alive=false;subscription.unsubscribe();};
  },[]);
+ useEffect(()=>{
+  if(tab!=='chat'||!current||!profile)return;
+  let active=true;
+  setChatLoading(true);
+  const loadMessages=async()=>{
+   const {data,error}=await supabase.from('chat_messages').select('id,channel,sender_id,sender_name,sender_role,body,created_at').eq('channel',chatRoom).order('created_at',{ascending:true}).limit(200);
+   if(!active)return;
+   if(error){setError('Не удалось загрузить чат: '+error.message);setChatMessages([]);}else setChatMessages((data||[]) as ChatMessage[]);
+   setChatLoading(false);
+  };
+  void loadMessages();
+  const channel=supabase.channel('journal-chat-'+chatRoom+'-'+current)
+   .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:'channel=eq.'+chatRoom},payload=>{
+    const message=payload.new as ChatMessage;
+    if(!active||message.channel!==chatRoom)return;
+    setChatMessages(previous=>previous.some(item=>item.id===message.id)?previous:[...previous,message].slice(-200));
+   })
+   .subscribe();
+  return()=>{active=false;void supabase.removeChannel(channel);};
+ },[tab,chatRoom,current,profile?.role]);
+ async function sendChatMessage(e:FormEvent){
+  e.preventDefault();const body=chatBody.trim();if(!body||!current||chatSending)return;
+  setChatSending(true);setError('');
+  try{
+   const {data,error}=await supabase.from('chat_messages').insert({channel:chatRoom,sender_id:current,body}).select('id,channel,sender_id,sender_name,sender_role,body,created_at').single();
+   if(error)throw error;
+   const message=data as ChatMessage;
+   setChatMessages(previous=>previous.some(item=>item.id===message.id)?previous:[...previous,message].slice(-200));
+   setChatBody('');
+  }catch(e){setError('Не удалось отправить сообщение: '+((e as Error).message||'ошибка'));}
+  finally{setChatSending(false);}
+ }
+ async function deleteChatMessage(id:string){
+  if(!window.confirm('Удалить это сообщение?'))return;
+  const {data,error}=await supabase.from('chat_messages').delete().eq('id',id).select('id');
+  if(error){setError('Не удалось удалить сообщение: '+error.message);return;}
+  if(!data?.length){setError('Сообщение не удалено: нет прав на удаление.');return;}
+  setChatMessages(previous=>previous.filter(item=>item.id!==id));
+ }
  const patch=async(part:Partial<DB>)=>{
   const next={...db,...part};setDb(next);
   try{
@@ -218,9 +264,10 @@ export default function App(){
  if(profile?.role==='viewer'&&!['diary','other'].includes(tab))return <main className="auth-wrap"><section className="auth-card"><h1>Доступ закрыт</h1><p className="muted">Проводникам доступен только личный дневник. Полный журнал доступен только ЛНП.</p><button className="primary" onClick={()=>setTab('diary')}>Открыть мой дневник</button></section></main>;
  if(!user)return <main className="auth-wrap"><section className="auth-card"><div className="brand"><span className="brand-icon"><TrainFront/></span><div><b>Журнал ДЖД</b><small>Вход запоминается на устройстве</small></div></div><h1>{mode==='login'?'Вход в журнал':'Регистрация'}</h1><p className="muted">Вход и журнал работают через защищённую базу ДЖД.</p><form onSubmit={auth} className="stack">{mode==='signup'&&<label>Имя и фамилия<input required value={name} onChange={e=>setName(e.target.value)} placeholder="Имя и фамилия"/></label>}<label>Электронная почта<input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com"/></label><label>Пароль<input type="password" minLength={6} required value={password} onChange={e=>setPassword(e.target.value)} placeholder="Не менее 6 символов"/></label><button className="primary" type="submit">{mode==='login'?'Войти':'Создать аккаунт'}</button></form><button className="link" onClick={()=>{setMode(mode==='login'?'signup':'login');setError('');}}>{mode==='login'?'Нет аккаунта? Зарегистрироваться':'Уже зарегистрирован? Войти'}</button>{error&&<p className="alert error">{error}</p>}{notice&&<p className="alert success">{notice}</p>}{db.users.length===0&&<p className="muted">Первый зарегистрировавшийся пользователь получит права первого ЛНП. Остальные аккаунты будут обычными пользователями.</p>}</section></main>;
  if(profile?.role==='viewer'&&!profile.conductor_id)return <main className="auth-wrap"><section className="auth-card"><div className="brand"><span className="brand-icon"><TrainFront/></span><div><b>Журнал ДЖД</b><small>Привязка аккаунта к журналу</small></div></div><h1>Выбери себя</h1><p className="muted">Если у тебя есть специальный код приглашения от первого ЛНП, введи его здесь. Иначе выбери свою фамилию и имя из списка проводников.</p><div className="stack"><label>Код приглашения второго ЛНП<input value={inviteInput} onChange={e=>setInviteInput(e.target.value.toUpperCase())} placeholder="КОД ОТ ПЕРВОГО ЛНП"/></label><button className="primary" disabled={inviteInput.trim().length<6} onClick={redeemInvite}>Применить приглашение ЛНП</button><div className="muted">Или привяжи обычный аккаунт проводника:</div><label>Проводник<select value={selectedPersonId} onChange={e=>setSelectedPersonId(e.target.value)}><option value="">Выбери себя</option>{people.filter(p=>!p.linkedUserId).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><button className="primary" disabled={!selectedPersonId} onClick={linkConductor}>Подтвердить выбор</button></div>{!people.some(p=>!p.linkedUserId)&&<p className="alert notice">Свободных записей пока нет. Попроси ЛНП добавить тебя в список проводников.</p>}{error&&<p className="alert error">{error}</p>}<button className="link" onClick={logout}>Выйти</button></section></main>;
- return <div className="app"><aside className="sidebar"><div className="brand"><span className="brand-icon"><TrainFront/></span><div><b>Журнал ДЖД</b><small>Учебный журнал</small></div></div><div className="nav-label">РАБОЧЕЕ МЕСТО</div><nav>{tabs.filter(t=>canTeach?(t.id!=='diary'):(t.id==='diary'||t.id==='other')).map(t=><button key={t.id} className={tab===t.id?'active':''} onClick={()=>{setTab(t.id);setEditId('');}}><t.icon size={18}/>{t.label}</button>)}</nav><div className="side-bottom"><div className="user-mini"><div className="avatar">{initials(user.name)}</div><div><b>{user.name}</b><small>{user.role==='owner'?'ЛНП':'Пользователь'}</small></div></div><button className="logout" onClick={logout}><LogOut size={17}/> Выйти</button></div></aside>
+ return <div className="app"><aside className="sidebar"><div className="brand"><span className="brand-icon"><TrainFront/></span><div><b>Журнал ДЖД</b><small>Учебный журнал</small></div></div><div className="nav-label">РАБОЧЕЕ МЕСТО</div><nav>{tabs.filter(t=>canTeach?(t.id!=='diary'):(t.id==='diary'||t.id==='other'||t.id==='chat')).map(t=><button key={t.id} className={tab===t.id?'active':''} onClick={()=>{setTab(t.id);setEditId('');}}><t.icon size={18}/>{t.label}</button>)}</nav><div className="side-bottom"><div className="user-mini"><div className="avatar">{initials(user.name)}</div><div><b>{user.name}</b><small>{user.role==='owner'?'ЛНП':'Пользователь'}</small></div></div><button className="logout" onClick={logout}><LogOut size={17}/> Выйти</button></div></aside>
  <main className="content"><header><div><div className="eyebrow">ДЕТСКАЯ ЖЕЛЕЗНАЯ ДОРОГА · ЭЛЕКТРОННЫЙ ЖУРНАЛ</div><h1>{tab==='diary'?'Мой дневник':tabs.find(t=>t.id===tab)?.label}</h1></div><div className="header-tools"><div className="top-user"><span className="online-dot"/>{user.name}</div></div></header>
  {error&&<div className="alert error">{error}</div>}{notice&&<div className="alert success">{notice}</div>}
+ {tab==='chat'&&<div className="panel chat-panel"><div className="section-heading"><div><h3>Чаты</h3><p className="muted">Общение участников детской железной дороги</p></div><span className="pill">Сообщения сохраняются</span></div><div className="chat-room-switch"><button className={chatRoom==='students'?'active':''} onClick={()=>setChatRoom('students')}><Users size={15}/> Чат с проводниками</button>{canUseModeratorChat&&<button className={chatRoom==='moderators'?'active':''} onClick={()=>setChatRoom('moderators')}><ShieldCheck size={15}/> Чат ЛНП</button>}</div><div className="chat-room-description">{chatRoom==='moderators'?'Закрытая комната для двух аккаунтов ЛНП. Проводники не имеют доступа к этим сообщениям.':'Общий чат проводников и ЛНП. Все вошедшие участники могут читать и отправлять сообщения.'}</div><div className="chat-messages" aria-live="polite">{chatLoading?<div className="empty">Загружаем сообщения…</div>:chatMessages.length===0?<div className="empty chat-empty">Пока сообщений нет. Напиши первое сообщение!</div>:chatMessages.map(message=><div className={'chat-message '+(message.sender_id===current?'chat-message-own':'')} key={message.id}><div className="chat-message-head"><b>{message.sender_name}</b><span className="chat-role">{message.sender_role==='lnp'?'ЛНП':'Проводник'}</span><time>{new Date(message.created_at).toLocaleString('ru-RU',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}</time>{(message.sender_id===current||canTeach)&&<button type="button" className="chat-delete" title="Удалить сообщение" onClick={()=>void deleteChatMessage(message.id)}><Trash2 size={13}/></button>}</div><p>{message.body}</p></div>)}</div><form className="chat-compose" onSubmit={sendChatMessage}><textarea value={chatBody} onChange={e=>setChatBody(e.target.value.slice(0,2000))} placeholder={chatRoom==='moderators'?'Напиши сообщение для ЛНП…':'Напиши сообщение проводникам и ЛНП…'} rows={3} maxLength={2000}/><div className="chat-compose-footer"><small>{chatBody.length}/2000 символов</small><button className="primary" disabled={!chatBody.trim()||chatSending}>{chatSending?'Отправляем…':<><Send size={15}/> Отправить</>}</button></div></form></div>}
  {tab==='other'&&<div className="panel"><div className="section-heading"><div><h3>Дневники участников</h3><p className="muted">У каждого проводника и ЛНП есть отдельная ссылка. Её можно открыть на сайте и отправить другим.</p></div></div>{people.map(p=><div className="list-row" key={p.id}><div className="avatar">{initials(p.name)}</div><div className="grow"><b>{p.name}</b><small>Личный дневник проводника</small></div><a className="small-btn" href={'?diary='+encodeURIComponent(p.id)} target="_blank" rel="noreferrer">Открыть дневник</a><button className="secondary icon-btn" title="Скопировать ссылку" onClick={()=>{const url=window.location.origin+window.location.pathname+'?diary='+encodeURIComponent(p.id);void navigator.clipboard.writeText(url);flash('Ссылка на дневник '+p.name+' скопирована');}}><Link2 size={15}/></button></div>)}{!people.length&&<Empty text="Проводников пока нет"/>}</div>}
  {tab==='overview'&&<><div className="welcome"><div><span className="pill">ЭЛЕКТРОННЫЙ ЖУРНАЛ</span><h2>Здравствуйте, {user.name.split(' ')[0]}!</h2><p>Успеваемость, посещаемость, занятия и документы проводников.</p></div><BookOpen size={54}/></div><div className="stats"><Stat title="Проводники" value={people.length} icon={<Users/>}/><Stat title="Занятия" value={db.lessons.length} icon={<CalendarDays/>}/><Stat title="Мои оценки" value={myGrades.length} icon={<GraduationCap/>}/><Stat title="Задания" value={db.tasks.length} icon={<BookMarked/>}/></div><div className="panel"><h3>Ближайшие занятия</h3>{db.lessons.filter(l=>!l.isGradeColumn&&new Date(l.date)>=new Date()).slice(0,5).map(l=><div className="list-row" key={l.id}><div className="date-chip">{new Date(l.date).toLocaleDateString('ru-RU',{day:'2-digit',month:'short'})}</div><div className="grow"><b>{l.title}</b><small>{niceDate(l.date)} · {l.details||'Без описания'}</small></div></div>)}{!db.lessons.some(l=>!l.isGradeColumn)&&<Empty text="Занятий пока нет"/>}</div></>}
  {tab==='people'&&<div className="panel"><div className="section-heading"><div><h3>Редактор проводников и ЛНП</h3><p className="muted">Единый список участников. Здесь можно изменить имя проводника или любого из двух ЛНП.</p></div><span className="pill">{db.users.length} участников</span></div>{canTeach&&<form className="add-person-form" onSubmit={addPerson}><input value={newPersonName} onChange={e=>setNewPersonName(e.target.value)} placeholder="Фамилия и имя нового проводника" required/><button className="primary">{editingPersonId?<Check size={16}/>:<Plus size={16}/>} {editingPersonId?'Сохранить имя':'Добавить проводника'}</button>{editingPersonId&&<button type="button" className="secondary" onClick={()=>{setEditingPersonId('');setNewPersonName('');}}>Отмена</button>}</form>}{db.users.map(p=>{const shown=p.role==='owner'?{...p,name:adminProfiles.find(a=>a.id===p.linkedUserId)?.display_name||p.name}:p;return <div className="list-row" key={p.id}><div className="avatar">{initials(shown.name)}</div><div className="grow"><b>{shown.name}</b><small>{p.role==='owner'?'ЛНП':'Проводник'}</small></div>{canTeach&&<div className="actions"><button className="secondary icon-btn" title="Изменить имя" onClick={()=>editPerson(shown)}><Pencil size={14}/></button>{p.role==='conductor'&&<button className="danger icon-btn" title="Удалить проводника" onClick={()=>removePerson(p.id)}><Trash2 size={14}/></button>}</div>}</div>})}</div>}
