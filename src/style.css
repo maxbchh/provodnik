@@ -130,3 +130,25 @@ input[type=file]{padding:9px;background:#fbfcfe}
 .grade-table .homework-row td{height:42px;max-height:42px;padding:3px 4px!important}
 .grade-table .homework-row td:nth-last-child(-n+2){height:42px}
 .homework-modal{max-width:540px}
+
+
+/* Journal columns can be rearranged by dragging their headings. */
+.grade-table th.draggable-column{cursor:grab;position:relative}
+.grade-table th.draggable-column:active{cursor:grabbing}
+.grade-table th.draggable-column:hover{background:#eaf1fb}
+.delete-column-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;margin-left:5px;padding:0;
+  border:1px solid #f0caca;border-radius:6px;background:#fff7f7;
+  color:#bd4545;vertical-align:middle;cursor:pointer;
+}
+.delete-column-btn:hover{background:#ffeaea}
+.grade-column-tools-bottom{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  margin:14px 0 20px;padding:13px 14px;border:1px solid #e5eaf1;
+  border-radius:10px;background:#fafbfd;
+}
+.grade-column-tools-bottom>div{display:flex;flex-direction:column;gap:3px;flex:1 1 220px}
+.grade-column-tools-bottom>div b{font-size:12px;color:#243247}
+.grade-column-tools-bottom>div small{font-size:11px;color:#7b8798}
+.grade-column-tools-bottom input{flex:1 1 220px;min-width:180px}
