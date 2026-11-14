@@ -237,6 +237,3 @@ input[type=file]{padding:9px;background:#fbfcfe}
 .grade-modal .modal-label{margin:14px 0;color:#536176}
 .grade-manual-input,.grade-comment-input{width:100%}
 .grade-comment-input{min-height:82px;line-height:1.5}
-@media(max-width:620px){
-  .fraction-preset-grid .quick-grade{min-height:40px}
-}
