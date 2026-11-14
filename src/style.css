@@ -220,3 +220,28 @@ input[type=file]{padding:9px;background:#fbfcfe}
  .document-times{grid-template-columns:1fr 1fr}
  .document-editor{padding:11px}
 }
+
+
+/* Grade comments, quick fractional choices and manual scoring */
+.grade-comment{
+  display:block;
+  margin-top:5px;
+  color:#536f90!important;
+  font-size:11px!important;
+  line-height:1.45;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+}
+.fraction-preset-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-top:9px;
+}
+.fraction-preset-grid .quick-grade{min-height:42px;font-size:14px}
+.grade-modal .modal-label{margin:14px 0;color:#536176}
+.grade-manual-input,.grade-comment-input{width:100%}
+.grade-comment-input{min-height:82px;line-height:1.5}
+@media(max-width:620px){
+  .fraction-preset-grid .quick-grade{min-height:40px}
+}
