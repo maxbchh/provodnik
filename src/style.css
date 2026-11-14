@@ -237,3 +237,40 @@ input[type=file]{padding:9px;background:#fbfcfe}
 .grade-modal .modal-label{margin:14px 0;color:#536176}
 .grade-manual-input,.grade-comment-input{width:100%}
 .grade-comment-input{min-height:82px;line-height:1.5}
+
+
+
+/* Dedicated points grading mode */
+.points-mode-button{
+  display:block;
+  width:100%;
+  margin:14px 0 6px;
+  padding:12px 14px;
+  border:1px solid #a9c4e2;
+  border-radius:9px;
+  background:#f1f7ff;
+  color:#2867a9;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+}
+.points-mode-button:hover{background:#e7f1ff;border-color:#7fa9d8}
+.points-mode-panel{display:grid;gap:10px;margin-top:15px}
+.points-mode-heading{font-size:13px;font-weight:700;color:#344b66}
+.points-mode-panel .modal-label{margin:3px 0 9px}
+.points-preview{
+  display:grid;
+  gap:6px;
+  padding:12px 14px;
+  border:1px solid #dce7f3;
+  border-radius:9px;
+  background:#f7faff;
+}
+.points-preview b{font-size:16px;color:#285f97}
+.points-preview span,.points-equivalent{
+  display:block;
+  color:#58728e!important;
+  font-size:11px!important;
+  line-height:1.5;
+}
+.points-equivalent{margin-top:5px}
