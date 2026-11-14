@@ -31,3 +31,8 @@
 .modal-label small{display:none}
 .add-person-form small{font-size:10px;color:#8893a2}
 @media(max-width:620px){.grade-table{min-width:850px}.grade-table tbody td{height:48px}.grade-table tbody td .matrix-cell{height:48px;min-height:48px}.grade-modal{padding:17px}.quick-grade{min-height:44px}}
+
+/* UI refinements requested for journal and diary */
+.grade-table tbody td,.grade-table tbody td .matrix-cell{text-align:center;justify-content:center;align-items:center}
+.quick-grade-special{grid-template-columns:1fr 2fr}
+.cross-choice{display:none!important}
