@@ -19,7 +19,7 @@
 .quick-grade-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:20px 0 12px}
 .quick-grade{min-height:48px;border:1px solid #dce4ee;border-radius:9px;background:#fff;color:#2d3b4d;font-size:16px;font-weight:700}
 .quick-grade:hover,.quick-grade.selected{border-color:#397bc8;background:#edf4ff;color:#2867b2}
-.quick-grade-special{display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px}
+.quick-grade-special{display:grid;grid-template-columns:1fr 1fr 1fr 2fr;gap:8px}
 .quick-grade-special .quick-grade{font-size:14px}
 .absent-choice{background:#fff1f1;color:#bd4d58}
 .cross-choice{background:#f4f1ff;color:#6951a5}
@@ -274,3 +274,6 @@ input[type=file]{padding:9px;background:#fbfcfe}
   line-height:1.5;
 }
 .points-equivalent{margin-top:5px}
+
+.pass-choice{background:#edf8f0;color:#287747}
+.fail-choice{background:#fff1f1;color:#bd4d58}
