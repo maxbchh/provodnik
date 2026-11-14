@@ -7,12 +7,13 @@ type Role='owner'|'teacher'|'conductor';
 type User={id:string;name:string;email:string;passwordHash:string;role:Role;linkedUserId?:string|null};
 type CloudProfile={id:string;display_name:string;email:string;role:'lnp'|'viewer';conductor_id:string|null};
 type Grade={id:string;studentId:string;subject:string;score:number|string|null;mark:'grade'|'Н'|'cross';comment:string;date:string;lessonId?:string};
-type Lesson={id:string;title:string;date:string;details:string;isGradeColumn?:boolean};
-type Task={id:string;title:string;details:string;due:string;done:boolean;lessonId?:string};
+type Lesson={id:string;title:string;date:string;details:string;isGradeColumn?:boolean;isCompleted?:boolean};
+type TaskAttachment={name:string;path:string;size:number;type:string};
+type Task={id:string;title:string;details:string;due:string;done:boolean;lessonId?:string;attachments:TaskAttachment[]};
 type Attendance={id:string;lessonId:string;studentId:string;status:'present'|'absent'|'late'};
 type DocRecord={id:string;studentId:string;brought:boolean;broughtList:string;issuedList:string;missingList:string;comment:string};
 type Note={id:string;studentId:string;body:string;date:string};
-type PublicDiaryData={person:{id:string;name:string};lessons:{id:string;title:string;date:string;details:string;isGradeColumn?:boolean}[];grades:{id:string;lessonId:string|null;score:string;comment:string;date:string}[];attendance:{id:string;lessonId:string;status:'present'|'absent'|'late'}[];homework:{id:string;title:string;details:string;due:string|null;done:boolean;lessonId:string|null}[]};
+type PublicDiaryData={person:{id:string;name:string};lessons:{id:string;title:string;date:string;details:string;isGradeColumn?:boolean;isCompleted?:boolean}[];grades:{id:string;lessonId:string|null;score:string;comment:string;date:string}[];attendance:{id:string;lessonId:string;status:'present'|'absent'|'late'}[];homework:{id:string;title:string;details:string;due:string|null;lessonId:string|null;attachments?:TaskAttachment[]}[]};
 type DB={users:User[];grades:Grade[];lessons:Lesson[];tasks:Task[];attendance:Attendance[];documents:DocRecord[];notes:Note[]};
 const blank:DB={users:[],grades:[],lessons:[],tasks:[],attendance:[],documents:[],notes:[]};
 const uid=()=>crypto.randomUUID();
@@ -20,7 +21,7 @@ const dateNow=()=>new Date().toISOString();
 async function hashPassword(value:string){const bytes=new TextEncoder().encode(value);const digest=await crypto.subtle.digest('SHA-256',bytes);return Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,'0')).join('');}
 const tabs=[
  {id:'grades',label:'Журнал',icon:GraduationCap},{id:'diary',label:'Дневник',icon:BookOpen},
- {id:'schedule',label:'Уроки',icon:CalendarDays},{id:'homework',label:'Домашние задания',icon:BookMarked},
+ {id:'people',label:'Редактор проводников и ЛНП',icon:Users},{id:'schedule',label:'Уроки',icon:CalendarDays},{id:'homework',label:'Домашние задания',icon:BookMarked},
  {id:'documents',label:'Документы и форма',icon:FileText},{id:'notes',label:'Примечания',icon:MessageSquareText},{id:'other',label:'Другое',icon:Link2}
 ] as const;
 type Tab=string;
@@ -56,6 +57,7 @@ export default function App(){
  const [lessonTitle,setLessonTitle]=useState(''),[lessonDate,setLessonDate]=useState(''),[lessonDetails,setLessonDetails]=useState('');
  const [columnTitle,setColumnTitle]=useState(''),[columnEditId,setColumnEditId]=useState('');
  const [taskTitle,setTaskTitle]=useState(''),[taskDetails,setTaskDetails]=useState(''),[taskDue,setTaskDue]=useState(''),[taskLesson,setTaskLesson]=useState('');
+ const [taskFiles,setTaskFiles]=useState<File[]>([]);
  const [attendanceLesson,setAttendanceLesson]=useState(''),[attendanceStudent,setAttendanceStudent]=useState('');
  const [docStudent,setDocStudent]=useState(''),[docBrought,setDocBrought]=useState(false),[docBroughtList,setDocBroughtList]=useState(''),[docIssued,setDocIssued]=useState(''),[docMissing,setDocMissing]=useState(''),[docComment,setDocComment]=useState('');
  const [noteStudent,setNoteStudent]=useState(''),[noteText,setNoteText]=useState('');
@@ -65,7 +67,7 @@ export default function App(){
  const isOwner=user?.role==='owner';
  const lnpCount=adminProfiles.filter(p=>p.role==='lnp').length;
  const people=db.users.filter(u=>u.role==='conductor');
- const journalPeople=db.users;
+ const journalPeople=people;
  async function loadCloudData(userId:string){
   const [pr,cr,lr,mr,hr,ar,dr,nr]=await Promise.all([
    supabase.from('profiles').select('id,display_name,email,role,conductor_id').eq('id',userId).single(),
@@ -86,8 +88,8 @@ export default function App(){
   setDb({
    users:roster,
    grades:(mr.data||[]).map((x:any):Grade=>({id:x.id,studentId:x.conductor_id,lessonId:x.lesson_id,subject:'',score:x.value==='Н'||x.value==='✝'?null:x.value,mark:x.value==='Н'?'Н':x.value==='✝'?'cross':'grade',comment:x.comment||'',date:x.updated_at||''})),
-   lessons:(lr.data||[]).map((x:any):Lesson=>({id:x.id,title:x.title,date:x.starts_at,details:x.details||'',isGradeColumn:!!x.is_grade_column})), 
-   tasks:(hr.data||[]).map((x:any):Task=>({id:x.id,title:x.title,details:x.details||'',due:x.due_date||'',done:!!x.is_done,lessonId:x.lesson_id})),
+   lessons:(lr.data||[]).map((x:any):Lesson=>({id:x.id,title:x.title,date:x.starts_at,details:x.details||'',isGradeColumn:!!x.is_grade_column,isCompleted:!!x.is_completed})),  
+   tasks:(hr.data||[]).map((x:any):Task=>({id:x.id,title:x.title,details:x.details||'',due:x.due_date||'',done:false,lessonId:x.lesson_id,attachments:Array.isArray(x.attachments)?x.attachments:[]})), 
    attendance:(ar.data||[]).map((x:any):Attendance=>({id:x.id,lessonId:x.lesson_id,studentId:x.conductor_id,status:x.status})),
    documents:(dr.data||[]).map((x:any):DocRecord=>({id:x.id,studentId:x.conductor_id,brought:x.brought,broughtList:x.brought_list,issuedList:x.issued_list,missingList:x.missing_list,comment:x.comment})),
    notes:(nr.data||[]).map((x:any):Note=>({id:x.id,studentId:x.conductor_id,body:x.body,date:x.created_at}))
@@ -112,7 +114,7 @@ export default function App(){
     users:{table:'conductors',rows:(xs:User[])=>xs.map(x=>({id:x.id,full_name:x.name,linked_user_id:x.linkedUserId||null,created_by:current||null}))},
     grades:{table:'marks',rows:(xs:Grade[])=>xs.map(x=>({id:x.id,conductor_id:x.studentId,lesson_id:x.lessonId,value:x.mark==='Н'?'Н':x.mark==='cross'?'✝':String(x.score),comment:x.comment||'',created_by:current||null}))},
     lessons:{table:'lessons',rows:(xs:Lesson[])=>xs.map(x=>({id:x.id,title:x.title,starts_at:x.date,details:x.details,is_grade_column:!!x.isGradeColumn,created_by:current||null}))},
-    tasks:{table:'homework',rows:(xs:Task[])=>xs.filter(x=>x.lessonId).map(x=>({id:x.id,lesson_id:x.lessonId,title:x.title,details:x.details,due_date:x.due||null,is_done:x.done,created_by:current||null}))},
+    tasks:{table:'homework',rows:(xs:Task[])=>xs.filter(x=>x.lessonId).map(x=>({id:x.id,lesson_id:x.lessonId,title:x.title,details:x.details,due_date:x.due||null,is_done:false,attachments:x.attachments||[],created_by:current||null}))}, 
     attendance:{table:'attendance',conflict:'lesson_id,conductor_id',rows:(xs:Attendance[])=>xs.map(x=>({id:x.id,lesson_id:x.lessonId,conductor_id:x.studentId,status:x.status,created_by:current||null}))},
     documents:{table:'documents',rows:(xs:DocRecord[])=>xs.map(x=>({id:x.id,conductor_id:x.studentId,brought:x.brought,brought_list:x.broughtList,issued_list:x.issuedList,missing_list:x.missingList,comment:x.comment}))},
     notes:{table:'notes',rows:(xs:Note[])=>xs.map(x=>({id:x.id,conductor_id:x.studentId,body:x.body,created_by:current||null}))}
@@ -154,7 +156,7 @@ export default function App(){
  }catch(e){setError((e as Error).message||'Не удалось выполнить действие');}}
 
  async function logout(){await supabase.auth.signOut();setCurrent('');setProfile(null);setPassword('');setTab('grades');}
- async function addPerson(e:FormEvent){e.preventDefault();const fullName=newPersonName.trim();if(!fullName)return;try{if(editingPersonId){const {error}=await supabase.from('conductors').update({full_name:fullName}).eq('id',editingPersonId);if(error)throw error;}else{const {error}=await supabase.from('conductors').insert({full_name:fullName,created_by:current});if(error)throw error;}await loadCloudData(current);setNewPersonName('');setEditingPersonId('');flash(editingPersonId?'Имя проводника изменено':'Проводник добавлен в журнал');}catch(e){setError((e as Error).message);}}
+ async function addPerson(e:FormEvent){e.preventDefault();const fullName=newPersonName.trim();if(!fullName)return;try{if(editingPersonId){const person=db.users.find(x=>x.id===editingPersonId);const {error}=await supabase.from('conductors').update({full_name:fullName}).eq('id',editingPersonId);if(error)throw error;if(person?.linkedUserId){const {error:profileError}=await supabase.from('profiles').update({display_name:fullName}).eq('id',person.linkedUserId);if(profileError)throw profileError;}}else{const {error}=await supabase.from('conductors').insert({full_name:fullName,created_by:current});if(error)throw error;}await loadCloudData(current);setNewPersonName('');setEditingPersonId('');flash(editingPersonId?'Имя участника изменено':'Проводник добавлен в журнал');}catch(e){setError((e as Error).message);}}
  function editPerson(p:User){setEditingPersonId(p.id);setNewPersonName(p.name);}
  async function removePerson(id:string){const p=db.users.find(x=>x.id===id);if(!p||!window.confirm('Удалить '+p.name+' и все связанные с ним записи?'))return;const {error}=await supabase.from('conductors').delete().eq('id',id);if(error){setError(error.message);return;}await loadCloudData(current);flash('Проводник удалён');}
  function resetGrade(){setEditId('');setStudent('');setSubject('');setScore('10');setGradeComment('');}
@@ -163,12 +165,14 @@ export default function App(){
   patch({grades:editId?db.grades.map(x=>x.id===editId?item:x):[item,...db.grades]});resetGrade();flash('Оценка сохранена');
  }
  function editGrade(g:Grade){setEditId(g.id);setStudent(g.studentId);setSubject(g.subject);setScore(g.mark==='Н'?'Н':g.mark==='cross'?'✝':String(g.score));setGradeComment(g.comment);window.scrollTo({top:0,behavior:'smooth'});}
- function saveLesson(e:FormEvent){e.preventDefault();const item:Lesson={id:editId||uid(),title:lessonTitle.trim(),date:new Date(lessonDate).toISOString(),details:lessonDetails.trim(),isGradeColumn:false};patch({lessons:editId?db.lessons.map(x=>x.id===editId?item:x):[...db.lessons,item].sort((a,b)=>a.date.localeCompare(b.date))});setEditId('');setLessonTitle('');setLessonDate('');setLessonDetails('');flash('Занятие сохранено');}
+ function saveLesson(e:FormEvent){e.preventDefault();const item:Lesson={id:editId||uid(),title:lessonTitle.trim(),date:new Date(lessonDate).toISOString(),details:lessonDetails.trim(),isGradeColumn:false,isCompleted:db.lessons.find(x=>x.id===editId)?.isCompleted||false};patch({lessons:editId?db.lessons.map(x=>x.id===editId?item:x):[...db.lessons,item].sort((a,b)=>a.date.localeCompare(b.date))});setEditId('');setLessonTitle('');setLessonDate('');setLessonDetails('');flash('Занятие сохранено');}
  function editLesson(l:Lesson){setEditId(l.id);setLessonTitle(l.title);setLessonDate(new Date(l.date).toISOString().slice(0,16));setLessonDetails(l.details);}
+ function markLessonCompleted(l:Lesson){void patch({lessons:db.lessons.map(x=>x.id===l.id?{...x,isCompleted:!x.isCompleted}:x)});flash(l.isCompleted?'Урок возвращён в активные':'Урок отмечен как проведённый');}
  function addGradeColumn(){const title=columnTitle.trim();if(!title)return;const item:Lesson={id:uid(),title,date:dateNow(),details:'',isGradeColumn:true};void patch({lessons:[...db.lessons,item]});setColumnTitle('');flash('Колонка для оценок добавлена');}
  function renameGradeColumn(id:string,title:string){const clean=title.trim();if(!clean){setColumnEditId('');return;}void patch({lessons:db.lessons.map(l=>l.id===id?{...l,title:clean}:l)});setColumnEditId('');setColumnTitle('');flash('Название колонки изменено');}
- function saveTask(e:FormEvent){e.preventDefault();const item:Task={id:editId||uid(),title:taskTitle.trim(),details:taskDetails.trim(),due:taskDue,lessonId:taskLesson,done:db.tasks.find(x=>x.id===editId)?.done||false};patch({tasks:editId?db.tasks.map(x=>x.id===editId?item:x):[item,...db.tasks]});setEditId('');setTaskTitle('');setTaskDetails('');setTaskDue('');setTaskLesson('');flash('Домашнее задание сохранено');}
- function editTask(t:Task){setEditId(t.id);setTaskTitle(t.title);setTaskDetails(t.details);setTaskDue(t.due);setTaskLesson(t.lessonId||'');}
+ async function saveTask(e:FormEvent){e.preventDefault();if(!taskLesson||!taskTitle.trim())return;const id=editId||uid();const attachments=[...(db.tasks.find(x=>x.id===editId)?.attachments||[])];try{for(const file of taskFiles){if(file.size>50*1024*1024)throw new Error('Файл «'+file.name+'» больше 50 МБ. Уменьши файл или раздели его.');const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'_');const path=current+'/'+id+'/'+uid()+'-'+safe;const {error}=await supabase.storage.from('homework-files').upload(path,file,{upsert:false,contentType:file.type||'application/octet-stream'});if(error)throw error;attachments.push({name:file.name,path,size:file.size,type:file.type||'application/octet-stream'});}const item:Task={id,title:taskTitle.trim(),details:taskDetails.trim(),due:taskDue,lessonId:taskLesson,done:false,attachments};await patch({tasks:editId?db.tasks.map(x=>x.id===editId?item:x):[item,...db.tasks]});setEditId('');setTaskTitle('');setTaskDetails('');setTaskDue('');setTaskLesson('');setTaskFiles([]);flash('Домашнее задание сохранено');}catch(e){setError((e as Error).message||'Не удалось прикрепить файл');}}
+ function editTask(t:Task){setEditId(t.id);setTaskTitle(t.title);setTaskDetails(t.details);setTaskDue(t.due);setTaskLesson(t.lessonId||'');setTaskFiles([]);}
+ async function openTaskAttachment(path:string){const {data,error}=await supabase.storage.from('homework-files').createSignedUrl(path,120);if(error){setError('Не удалось открыть файл: '+error.message);return;}window.open(data.signedUrl,'_blank','noopener,noreferrer');}
  function saveDoc(e:FormEvent){e.preventDefault();if(!docStudent)return;const item:DocRecord={id:editId||uid(),studentId:docStudent,brought:docBrought,broughtList:docBroughtList.trim(),issuedList:docIssued.trim(),missingList:docMissing.trim(),comment:docComment.trim()};patch({documents:editId?db.documents.map(x=>x.id===editId?item:x):[...db.documents,item]});setEditId('');setDocBrought(false);setDocBroughtList('');setDocIssued('');setDocMissing('');setDocComment('');flash('Сведения о документах сохранены');}
  function editDoc(d:DocRecord){setEditId(d.id);setDocStudent(d.studentId);setDocBrought(d.brought);setDocBroughtList(d.broughtList);setDocIssued(d.issuedList);setDocMissing(d.missingList);setDocComment(d.comment);}
  function saveNote(e:FormEvent){e.preventDefault();if(!user||!noteStudent||!noteText.trim())return;patch({notes:[{id:uid(),studentId:noteStudent,body:noteText.trim(),date:dateNow()},...db.notes]});setNoteText('');flash('Примечание добавлено');}
