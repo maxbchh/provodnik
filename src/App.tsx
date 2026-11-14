@@ -119,11 +119,11 @@ export default function App(){
  useEffect(()=>{
   if(tab!=='chat'||!current||!profile)return;
   let active=true;
-  setChatLoading(true);
+  setChatLoading(true);setChatMessages([]);
   const loadMessages=async()=>{
-   const {data,error}=await supabase.from('chat_messages').select('id,channel,sender_id,sender_name,sender_role,body,created_at').eq('channel',chatRoom).order('created_at',{ascending:true}).limit(200);
+   const {data,error}=await supabase.from('chat_messages').select('id,channel,sender_id,sender_name,sender_role,body,created_at').eq('channel',chatRoom).order('created_at',{ascending:false}).limit(200);
    if(!active)return;
-   if(error){setError('Не удалось загрузить чат: '+error.message);setChatMessages([]);}else setChatMessages((data||[]) as ChatMessage[]);
+   if(error){setError('Не удалось загрузить чат: '+error.message);setChatMessages([]);}else setChatMessages(((data||[]) as ChatMessage[]).reverse());
    setChatLoading(false);
   };
   void loadMessages();
@@ -132,6 +132,11 @@ export default function App(){
     const message=payload.new as ChatMessage;
     if(!active||message.channel!==chatRoom)return;
     setChatMessages(previous=>previous.some(item=>item.id===message.id)?previous:[...previous,message].slice(-200));
+   })
+   .on('postgres_changes',{event:'DELETE',schema:'public',table:'chat_messages'},payload=>{
+    const deletedId=(payload.old as {id?:string})?.id;
+    if(!active||!deletedId)return;
+    setChatMessages(previous=>previous.filter(item=>item.id!==deletedId));
    })
    .subscribe();
   return()=>{active=false;void supabase.removeChannel(channel);};
