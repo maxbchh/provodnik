@@ -205,6 +205,7 @@ input[type=file]{padding:9px;background:#fbfcfe}
 .document-card p{font-size:11px;line-height:1.5;color:#647184;margin:7px 0}
 .document-card p b{color:#3c4858}
 .document-times{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0;padding:10px;border:1px solid #e8edf3;border-radius:9px;background:#f8fafc}
+.document-times>div{grid-column:1/-1}
 .document-times>div{display:grid;gap:5px;min-width:0}
 .document-times small{font-size:9px;color:#8993a0}
 .document-times b{font-size:10px;color:#354357;overflow-wrap:anywhere}
