@@ -97,3 +97,14 @@
 .column-title-button:hover{background:#dceafa}
 .column-title-edit{min-width:90px!important;padding:6px!important;text-align:center;font-size:11px!important}
 @media(max-width:620px){.grade-column-tools{display:grid}.grade-column-tools input{max-width:none}.grade-column-tools button{justify-self:stretch}}
+
+
+/* Participant editor and private homework attachments */
+.attachment-link{
+  display:inline-flex;align-items:center;gap:6px;margin:7px 7px 0 0;
+  padding:6px 9px;border:1px solid #dce6f2;border-radius:7px;
+  background:#f7faff;color:#356fae;font-size:11px;cursor:pointer;
+  max-width:100%;overflow-wrap:anywhere;
+}
+.attachment-link:hover{background:#edf4ff;border-color:#a9c5e5}
+input[type=file]{padding:9px;background:#fbfcfe}
