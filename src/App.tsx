@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { supabase } from './supabase';
-import { BookOpen, CalendarDays, ClipboardList, GraduationCap, LogOut, MessageSquareText, Users, Check, X, TrainFront, LayoutDashboard, FileText, Pencil, Trash2, Plus, BookMarked } from 'lucide-react';
+import { BookOpen, CalendarDays, ClipboardList, GraduationCap, LogOut, MessageSquareText, Users, Link2, Check, X, TrainFront, LayoutDashboard, FileText, Pencil, Trash2, Plus, BookMarked } from 'lucide-react';
 
 type Role='owner'|'teacher'|'conductor';
 type User={id:string;name:string;email:string;passwordHash:string;role:Role;linkedUserId?:string|null};
