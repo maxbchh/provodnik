@@ -20,7 +20,7 @@ const tabs=[
  {id:'schedule',label:'Уроки',icon:CalendarDays},{id:'homework',label:'Домашние задания',icon:BookMarked},
  {id:'documents',label:'Документы и форма',icon:FileText},{id:'notes',label:'Примечания',icon:MessageSquareText}
 ] as const;
-type Tab=typeof tabs[number]['id'];
+type Tab=string;
 const roleName=(r:Role)=>r==='owner'?'Начальник поезда':r==='teacher'?'Учитель':'Проводник';
 const niceDate=(s:string)=>s?new Date(s).toLocaleString('ru-RU',{dateStyle:'medium',timeStyle:'short'}):'—';
 const initials=(s:string)=>s.trim().split(/\s+/).map(x=>x[0]).slice(0,2).join('').toUpperCase();
