@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { CalendarDays, Plus, Trash2, Users } from 'lucide-react';
 import { supabase } from './supabase';
 
@@ -60,7 +61,7 @@ export default function PracticeAssignments({
     void reload();
   }, []);
 
-  const addPracticeDate = async (event: React.FormEvent) => {
+  const addPracticeDate = async (event: FormEvent) => {
     event.preventDefault();
     if (!newDate || saving) return;
     setSaving(true);
