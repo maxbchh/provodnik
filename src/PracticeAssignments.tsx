@@ -268,7 +268,7 @@ export default function PracticeAssignments({
 }
 
 export function MyPracticeCard({ conductorId }: { conductorId: string }) {
-  const [nextDate, setNextDate] = useState<string | null>(null);
+  const [nextPractice, setNextPractice] = useState<{ date: string; wagons: number[] } | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
@@ -276,15 +276,16 @@ export function MyPracticeCard({ conductorId }: { conductorId: string }) {
       setLoading(true);
       const { data: assignmentRows, error } = await supabase
         .from('practice_assignments')
-        .select('practice_day_id')
+        .select('practice_day_id,wagon_no')
         .eq('conductor_id', conductorId);
       if (error) {
         if (active) { setNextDate(null); setLoading(false); }
         return;
       }
-      const ids = Array.from(new Set((assignmentRows || []).map((row: { practice_day_id: string }) => row.practice_day_id)));
+      const rows = (assignmentRows || []) as Array<{ practice_day_id: string; wagon_no: number }>;
+      const ids = Array.from(new Set(rows.map(row => row.practice_day_id)));
       if (!ids.length) {
-        if (active) { setNextDate(null); setLoading(false); }
+        if (active) { setNextPractice(null); setLoading(false); }
         return;
       }
       const { data } = await supabase
@@ -295,7 +296,8 @@ export function MyPracticeCard({ conductorId }: { conductorId: string }) {
         .order('practice_date', { ascending: true })
         .limit(1);
       if (active) {
-        setNextDate((data?.[0] as { practice_date: string } | undefined)?.practice_date || null);
+        const next = (data?.[0] as { id: string; practice_date: string } | undefined);
+        setNextPractice(next ? { date: next.practice_date, wagons: rows.filter(row => row.practice_day_id === next.id).map(row => row.wagon_no) } : null);
         setLoading(false);
       }
     };
@@ -308,8 +310,8 @@ export function MyPracticeCard({ conductorId }: { conductorId: string }) {
       <div className="practice-next-icon"><CalendarDays size={20} /></div>
       <div>
         <h3>Следующая практика</h3>
-        <b>{loading ? 'Проверяем назначения…' : nextDate ? formatDate(nextDate) : 'Пока не назначена'}</b>
-        <p className="muted">{nextDate ? 'Ты включён в журнал назначений на эту дату.' : 'Когда ЛНП добавит тебя в вагон, дата появится здесь.'}</p>
+        <b>{loading ? 'Проверяем назначения…' : nextPractice ? formatDate(nextPractice.date) : 'Пока не назначена'}</b>
+        <p className="muted">{nextPractice ? 'Твоё назначение: вагон ' + nextPractice.wagons.join(', ') + '.' : 'Когда ЛНП добавит тебя в вагон, дата появится здесь.'}</p>
       </div>
     </section>
   );
