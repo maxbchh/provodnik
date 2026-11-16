@@ -7,7 +7,7 @@ import { BookOpen, CalendarDays, ClipboardList, GraduationCap, LogOut, MessageSq
 type Role='owner'|'teacher'|'conductor';
 type User={id:string;name:string;email:string;passwordHash:string;role:Role;linkedUserId?:string|null;rating?:number;profileNote?:string};
 type CloudProfile={id:string;display_name:string;email:string;role:'lnp'|'viewer';conductor_id:string|null};
-type Grade={id:string;studentId:string;subject:string;score:number|string|null;mark:'grade'|'Н'|'cross'|'dash'|'points'|'pass'|'fail;pointsGrade?:number|null;comment:string;date:string;lessonId?:string};
+type Grade={id:string;studentId:string;subject:string;score:number|string|null;mark:'grade'|'Н'|'cross'|'dash'|'points'|'pass'|'fail';pointsGrade?:number|null;comment:string;date:string;lessonId?:string};
 type Lesson={id:string;title:string;date:string|null;details:string;isGradeColumn?:boolean;isCompleted?:boolean};
 type TaskAttachment={name:string;path:string;size:number;type:string};
 type Task={id:string;title:string;details:string;due:string;done:boolean;lessonId?:string;attachments:TaskAttachment[]};
