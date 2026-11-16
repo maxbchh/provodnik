@@ -279,7 +279,7 @@ export function MyPracticeCard({ conductorId }: { conductorId: string }) {
         .select('practice_day_id,wagon_no')
         .eq('conductor_id', conductorId);
       if (error) {
-        if (active) { setNextDate(null); setLoading(false); }
+        if (active) { setNextPractice(null); setLoading(false); }
         return;
       }
       const rows = (assignmentRows || []) as Array<{ practice_day_id: string; wagon_no: number }>;
@@ -290,7 +290,7 @@ export function MyPracticeCard({ conductorId }: { conductorId: string }) {
       }
       const { data } = await supabase
         .from('practice_days')
-        .select('practice_date')
+        .select('id,practice_date')
         .in('id', ids)
         .gte('practice_date', localDate())
         .order('practice_date', { ascending: true })
@@ -311,7 +311,7 @@ export function MyPracticeCard({ conductorId }: { conductorId: string }) {
       <div>
         <h3>Следующая практика</h3>
         <b>{loading ? 'Проверяем назначения…' : nextPractice ? formatDate(nextPractice.date) : 'Пока не назначена'}</b>
-        <p className="muted">{nextPractice ? 'Твоё назначение: вагон ' + nextPractice.wagons.join(', ') + '.' : 'Когда ЛНП добавит тебя в вагон, дата появится здесь.'}</p>
+        <p className="muted">{loading ? 'Проверяем твой вагон…' : nextPractice ? 'Твоё назначение: вагон ' + nextPractice.wagons.join(', ') + '.' : 'Когда ЛНП добавит тебя в вагон, дата появится здесь.'}</p>
       </div>
     </section>
   );
