@@ -424,3 +424,38 @@ input[type=file]{padding:9px;background:#fbfcfe}
   .profile-note-editor>div .primary,.profile-note-editor>div .secondary{flex:1}
   .practice-next-card{padding:12px}
 }
+
+
+/* Optional seventh wagon and full assignment list in a conductor diary */
+.practice-wagon-tools{display:flex;align-items:center;gap:8px;margin:12px 0}
+.practice-show-seventh{min-height:34px}
+.practice-wagon-note{color:#6f8197;font-size:11px}
+.practice-next-content{flex:1;min-width:0}
+.practice-my-list{display:grid;gap:7px;margin-top:14px;padding-top:12px;border-top:1px solid #eef1f4}
+.practice-my-list>b{font-size:11px;color:#52647c}
+.practice-my-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;border:1px solid #e7edf4;border-radius:8px;background:#f9fbfd}
+.practice-my-row>span{font-size:11px;color:#40536c;font-weight:600}
+.practice-my-row>strong{font-size:11px;color:#2f659e}
+.practice-my-row>small{margin-left:auto;color:#8995a4;font-size:9px}
+
+/* Manually editable conductor ratings and individual qualities */
+.rating-criteria-form{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:18px 0}
+.rating-criteria-form input{flex:1 1 240px;max-width:460px}
+.rating-people-grid{display:grid;gap:12px}
+.rating-person-card{padding:14px 15px;border:1px solid #edf0f4;border-radius:10px;background:#fff}
+.rating-person-head{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.rating-person-name{display:flex;align-items:center;gap:9px;min-width:0}
+.rating-person-name b{font-size:13px;color:#344357;overflow-wrap:anywhere}
+.rating-manual-field{display:grid;gap:5px;color:#637186;font-size:10px;font-weight:600}
+.rating-manual-input{width:100px;text-align:center;font-size:13px;font-weight:700}
+.rating-criteria-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #eef1f4}
+.rating-criterion-field .rating-manual-input{width:100%}
+@media(max-width:620px){
+  .practice-my-row{align-items:flex-start;gap:6px;flex-direction:column}
+  .practice-my-row>small{margin-left:0}
+  .rating-person-head{align-items:flex-start;flex-direction:column}
+  .rating-criteria-form{display:grid;grid-template-columns:1fr}
+  .rating-criteria-form input{max-width:none}
+  .rating-criteria-form .primary{width:100%}
+  .rating-manual-input{width:100%}
+}

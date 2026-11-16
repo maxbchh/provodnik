@@ -22,6 +22,20 @@ const formatDate = (value: string) => new Date(value + 'T12:00:00').toLocaleDate
   day: 'numeric', month: 'long', year: 'numeric',
 });
 
+function canShowSeventhWagonControl(show: boolean, setShow: (value: boolean) => void) {
+  return (
+    <div className="practice-wagon-tools">
+      {show ? (
+        <span className="practice-wagon-note">7-й вагон добавлен в журнал</span>
+      ) : (
+        <button type="button" className="secondary practice-show-seventh" onClick={() => setShow(true)}>
+          <Plus size={14} /> Добавить 7-й вагон
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function PracticeAssignments({
   conductors,
   lnps,
@@ -35,6 +49,7 @@ export default function PracticeAssignments({
   const [assignments, setAssignments] = useState<PracticeAssignment[]>([]);
   const [newDate, setNewDate] = useState(localDate());
   const [expandedSlots, setExpandedSlots] = useState<Record<string, boolean>>({});
+  const [showSeventhWagon, setShowSeventhWagon] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -52,8 +67,10 @@ export default function PracticeAssignments({
       setLoading(false);
       return;
     }
+    const loadedAssignments = (assignmentResult.data || []) as PracticeAssignment[];
     setDays((dayResult.data || []) as PracticeDay[]);
-    setAssignments((assignmentResult.data || []) as PracticeAssignment[]);
+    setAssignments(loadedAssignments);
+    setShowSeventhWagon(previous => previous || loadedAssignments.some(item => item.wagon_no === 7));
     setLoading(false);
   };
 
@@ -140,6 +157,7 @@ export default function PracticeAssignments({
         ...previous.filter(item => !(item.practice_day_id === dayId && item.wagon_no === wagonNo && item.slot === slot)),
         data as PracticeAssignment,
       ]);
+      if (wagonNo === 7) setShowSeventhWagon(true);
       setNotice('Назначение сохранено');
     }
     setSaving(false);
@@ -197,6 +215,7 @@ export default function PracticeAssignments({
       {error && <div className="alert error">{error}</div>}
       {notice && <div className="alert success">{notice}</div>}
 
+      {canShowSeventhWagonControl(showSeventhWagon, setShowSeventhWagon)}
       {loading ? <div className="empty">Загружаем журнал назначений…</div> : days.length === 0 ? (
         <div className="empty">Пока нет дат практики. Добавь первую дату — она появится отдельной колонкой.</div>
       ) : (
@@ -218,7 +237,7 @@ export default function PracticeAssignments({
               </tr>
             </thead>
             <tbody>
-              {[0, 1, 2, 3, 4, 5, 6, 7].map(wagonNo => (
+              {[0, 1, 2, 3, 4, 5, 6, ...(showSeventhWagon ? [7] : [])].map(wagonNo => (
                 <tr key={wagonNo}>
                   <th>
                     <span className="practice-wagon-number">{wagonNo}</span>
@@ -262,42 +281,52 @@ export default function PracticeAssignments({
           </table>
         </div>
       )}
-      <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. В вагонах 1–7 можно оставить одно место или нажать «Второго» для второго проводника.</p>
+      <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. По умолчанию открыты вагоны 1–6. Седьмой добавляется отдельной кнопкой; в каждом вагоне можно назначить одного или двух проводников.</p>
     </section>
   );
 }
 
 export function MyPracticeCard({ conductorId }: { conductorId: string }) {
-  const [nextPractice, setNextPractice] = useState<{ date: string; wagons: number[] } | null>(null);
+  const [upcomingPractices, setUpcomingPractices] = useState<Array<{ date: string; wagons: number[] }>>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   useEffect(() => {
     let active = true;
     const load = async () => {
       setLoading(true);
-      const { data: assignmentRows, error } = await supabase
+      setError('');
+      const { data: assignmentRows, error: assignmentError } = await supabase
         .from('practice_assignments')
         .select('practice_day_id,wagon_no')
         .eq('conductor_id', conductorId);
-      if (error) {
-        if (active) { setNextPractice(null); setLoading(false); }
+      if (assignmentError) {
+        if (active) { setUpcomingPractices([]); setError('Не удалось загрузить назначения.'); setLoading(false); }
         return;
       }
       const rows = (assignmentRows || []) as Array<{ practice_day_id: string; wagon_no: number }>;
       const ids = Array.from(new Set(rows.map(row => row.practice_day_id)));
       if (!ids.length) {
-        if (active) { setNextPractice(null); setLoading(false); }
+        if (active) { setUpcomingPractices([]); setLoading(false); }
         return;
       }
-      const { data } = await supabase
+      const { data, error: daysError } = await supabase
         .from('practice_days')
         .select('id,practice_date')
         .in('id', ids)
         .gte('practice_date', localDate())
         .order('practice_date', { ascending: true })
-        .limit(1);
+        .limit(20);
       if (active) {
-        const next = (data?.[0] as { id: string; practice_date: string } | undefined);
-        setNextPractice(next ? { date: next.practice_date, wagons: rows.filter(row => row.practice_day_id === next.id).map(row => row.wagon_no) } : null);
+        if (daysError) {
+          setUpcomingPractices([]);
+          setError('Не удалось загрузить даты практики.');
+        } else {
+          const days = (data || []) as Array<{ id: string; practice_date: string }>;
+          setUpcomingPractices(days.map(day => ({
+            date: day.practice_date,
+            wagons: Array.from(new Set(rows.filter(row => row.practice_day_id === day.id).map(row => row.wagon_no))).sort((a, b) => a - b),
+          })));
+        }
         setLoading(false);
       }
     };
@@ -305,13 +334,26 @@ export function MyPracticeCard({ conductorId }: { conductorId: string }) {
     return () => { active = false; };
   }, [conductorId]);
 
+  const nextPractice = upcomingPractices[0] || null;
   return (
     <section className="panel practice-next-card">
       <div className="practice-next-icon"><CalendarDays size={20} /></div>
-      <div>
+      <div className="practice-next-content">
         <h3>Следующая практика</h3>
         <b>{loading ? 'Проверяем назначения…' : nextPractice ? formatDate(nextPractice.date) : 'Пока не назначена'}</b>
-        <p className="muted">{loading ? 'Проверяем твой вагон…' : nextPractice ? 'Твоё назначение: вагон ' + nextPractice.wagons.join(', ') + '.' : 'Когда ЛНП добавит тебя в вагон, дата появится здесь.'}</p>
+        <p className="muted">{loading ? 'Проверяем твой вагон…' : nextPractice ? 'Твоё ближайшее назначение: вагон ' + nextPractice.wagons.join(', ') + '.' : error || 'Когда ЛНП добавит тебя в вагон, дата и номер вагона появятся здесь.'}</p>
+        {!loading && upcomingPractices.length > 0 && (
+          <div className="practice-my-list">
+            <b>Все ближайшие назначения</b>
+            {upcomingPractices.map((practice, index) => (
+              <div className="practice-my-row" key={practice.date}>
+                <span>{formatDate(practice.date)}</span>
+                <strong>Вагон {practice.wagons.join(', ')}</strong>
+                {index === 0 && <small>Ближайшая</small>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
