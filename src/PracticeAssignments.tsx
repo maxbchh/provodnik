@@ -70,7 +70,7 @@ export default function PracticeAssignments({
     const loadedAssignments = (assignmentResult.data || []) as PracticeAssignment[];
     setDays((dayResult.data || []) as PracticeDay[]);
     setAssignments(loadedAssignments);
-    setShowSeventhWagon(loadedAssignments.some(item => item.wagon_no === 7));
+    setShowSeventhWagon(previous => previous || loadedAssignments.some(item => item.wagon_no === 7));
     setLoading(false);
   };
 
