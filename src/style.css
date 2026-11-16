@@ -345,3 +345,82 @@ input[type=file]{padding:9px;background:#fbfcfe}
   .student-document-confirmations{padding:11px}
   .document-confirmation-status p{align-items:flex-start}
 }
+
+
+/* Practice assignment journal */
+.practice-panel{overflow:hidden}
+.practice-date-form{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin:18px 0}
+.practice-date-form label{display:grid;gap:6px;color:#667386;font-size:11px;min-width:190px}
+.practice-date-form .primary{min-height:38px}
+.practice-table-wrap{width:100%;overflow:auto;border:1px solid #e4e9ef;border-radius:10px}
+.practice-table{width:100%;min-width:720px;border-collapse:separate;border-spacing:0}
+.practice-table th,.practice-table td{padding:9px;border-right:1px solid #edf0f3;border-bottom:1px solid #edf0f3;vertical-align:middle}
+.practice-table thead th{position:sticky;top:0;z-index:1;background:#f3f5f7;color:#3d4652;font-size:11px;text-align:center;min-width:190px}
+.practice-table thead th:first-child{left:0;z-index:2;min-width:86px}
+.practice-table tbody th{position:sticky;left:0;z-index:1;background:#f7f9fb;min-width:86px;text-align:center}
+.practice-table tbody td{background:#fff;min-width:190px}
+.practice-wagon-number{display:block;font-size:18px;font-weight:800;color:#34445a}
+.practice-table tbody th small{display:block;margin-top:3px;color:#8993a0;font-size:9px;font-weight:500}
+.practice-date-heading{display:flex;align-items:center;justify-content:center;gap:8px}
+.practice-date-heading span{font-size:11px;font-weight:700}
+.practice-delete-date{width:24px;height:24px;display:grid;place-items:center;border:1px solid #f0d7da;border-radius:6px;background:#fff7f7;color:#bd4d58;padding:0}
+.practice-cell{display:grid;gap:7px}
+.practice-select{min-width:0;padding:8px 9px;font-size:11px}
+.practice-add-second{justify-self:start;display:inline-flex;align-items:center;gap:4px;padding:5px 7px;border:1px dashed #bfd0e3;border-radius:6px;background:#f8fbff;color:#3974b4;font-size:10px}
+.practice-add-second:disabled{opacity:.4;cursor:not-allowed}
+.practice-lnps{display:grid;gap:6px}
+.practice-lnp-name{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:#465b76}
+.practice-lnps>small{color:#8993a0;font-size:10px}
+.practice-legend{margin:12px 0 0;color:#7c8796;font-size:10px;line-height:1.6}
+.practice-legend b{color:#4a5b70}
+.practice-next-card{display:flex;align-items:flex-start;gap:13px}
+.practice-next-icon{width:40px;height:40px;flex-shrink:0;display:grid;place-items:center;border-radius:10px;background:#edf4ff;color:#397bc8}
+.practice-next-card h3{margin:1px 0 7px}
+.practice-next-card>div:last-child>b{font-size:14px;color:#30445c}
+.practice-next-card p{margin:6px 0 0}
+.practice-summary-row{display:grid;grid-template-columns:minmax(130px,190px) 1fr;gap:12px;padding:12px 0;border-top:1px solid #eef1f4}
+.practice-summary-date{font-size:11px;font-weight:700;color:#34465c}
+.practice-summary-assignments{display:flex;flex-wrap:wrap;gap:6px}
+.practice-summary-assignments span{padding:5px 8px;border-radius:7px;background:#f2f6fb;color:#4c6078;font-size:10px}
+.practice-summary-assignments small{color:#929ba7;font-size:10px}
+.rating-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #eef1f4}
+.rating-place{width:28px;height:28px;display:grid;place-items:center;border-radius:8px;background:#f2f5f9;color:#738197;font-size:11px;font-weight:800}
+.rating-row .grow small{font-size:10px}
+.rating-value{min-width:36px;text-align:center;color:#34465c;font-size:16px;font-variant-numeric:tabular-nums}
+.rating-controls{display:flex;gap:6px}
+.rating-controls button{width:30px;height:30px;border-radius:7px;font-size:16px;font-weight:700}
+.rating-down{border:1px solid #f0d5d7;background:#fff5f5;color:#bc5159}
+.rating-up{border:1px solid #cfe8d8;background:#f1fbf4;color:#2f8a58}
+.rating-controls button:disabled{opacity:.35;cursor:not-allowed}
+.profile-note-preview{margin-top:6px;padding:7px 9px;border-left:3px solid #82a9d6;border-radius:4px;background:#f5f9ff;color:#49698e!important;white-space:pre-wrap;overflow-wrap:anywhere}
+.profile-note-editor{display:grid;gap:7px;margin-top:9px}
+.profile-note-editor textarea{min-height:64px}
+.profile-note-editor>div{display:flex;gap:7px;flex-wrap:wrap}
+.account-lnp-note{border-color:#d8e6f5;background:#f8fbff}
+.account-lnp-note h3{margin-bottom:8px;color:#315f91}
+.account-lnp-note p{margin:0;color:#405a78;font-size:13px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.person-editor-row{align-items:flex-start}
+.person-editor-row .actions{align-self:center}
+
+/* Grade colors: 1-4 red, 5-7 amber, 8-10 green. Fractions are colored independently. */
+.grade-rendered{display:inline-flex;align-items:center;justify-content:center;min-width:36px}
+.grade-red{color:#c8424e!important;font-weight:800}
+.grade-yellow{color:#b77a13!important;font-weight:800}
+.grade-green{color:#258451!important;font-weight:800}
+.grade-neutral{color:#596779!important;font-weight:700}
+.grade-fraction{display:inline-flex;align-items:center;gap:3px;font-weight:800}
+.grade-fraction-slash{color:#9aa3ae!important;font-weight:500}
+.matrix-cell-wrap{display:grid;gap:3px;min-width:76px;max-width:150px;margin:auto;padding:3px 2px}
+.grade-table tbody td .matrix-cell-wrap .matrix-cell{width:100%;min-width:0;height:35px;min-height:35px;border:0;border-radius:6px}
+.matrix-comment{display:block;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;color:#72849b;font-size:9px;line-height:1.25;cursor:help;padding:0 2px}
+.grade-table tbody td:has(.matrix-comment){min-width:78px}
+@media(max-width:620px){
+  .practice-date-form{display:grid;grid-template-columns:1fr}
+  .practice-date-form label{min-width:0}
+  .practice-date-form .primary{width:100%}
+  .practice-summary-row{grid-template-columns:1fr;gap:7px}
+  .rating-row{gap:8px}
+  .rating-place{width:24px;height:24px}
+  .profile-note-editor>div .primary,.profile-note-editor>div .secondary{flex:1}
+  .practice-next-card{padding:12px}
+}
