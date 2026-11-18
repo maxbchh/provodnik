@@ -4,6 +4,7 @@ import { CalendarDays, Plus, Trash2, Users } from 'lucide-react';
 import { supabase } from './supabase';
 
 type Conductor = { id: string; name: string };
+type ConductorStats = {conductorId:string;recommendationScore:number|null;rating:number|null;criteriaAverage:number|null;gradeAverage:number|null;attendanceRate:number|null;};
 type Lnp = { id: string; display_name: string };
 type PracticeDay = { id: string; practice_date: string };
 type PracticeAssignment = {
@@ -40,10 +41,12 @@ export default function PracticeAssignments({
   conductors,
   lnps,
   currentUserId,
+  stats,
 }: {
   conductors: Conductor[];
   lnps: Lnp[];
   currentUserId: string;
+  stats: ConductorStats[];
 }) {
   const [days, setDays] = useState<PracticeDay[]>([]);
   const [assignments, setAssignments] = useState<PracticeAssignment[]>([]);
@@ -167,28 +170,64 @@ export default function PracticeAssignments({
     const assignment = assignments.find(item =>
       item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === slot
     );
+    const recommendation = conductors
+      .filter(candidate => !assignments.some(item =>
+        item.practice_day_id === day.id &&
+        item.conductor_id === candidate.id &&
+        !(item.wagon_no === wagonNo && item.slot === slot)
+      ))
+      .map(candidate => ({ candidate, stats: stats.find(item => item.conductorId === candidate.id) }))
+      .filter(item => item.stats && item.stats.recommendationScore !== null && Number.isFinite(item.stats.recommendationScore))
+      .sort((a, b) => (b.stats?.recommendationScore || 0) - (a.stats?.recommendationScore || 0))[0];
+    const recommendationDetails = recommendation?.stats ? [
+      recommendation.stats.rating !== null ? 'рейтинг ' + Math.round(recommendation.stats.rating) : '',
+      recommendation.stats.criteriaAverage !== null ? 'качества ' + Math.round(recommendation.stats.criteriaAverage) : '',
+      recommendation.stats.gradeAverage !== null ? 'оценки ' + recommendation.stats.gradeAverage.toFixed(1) + '/10' : '',
+      recommendation.stats.attendanceRate !== null ? 'посещаемость ' + Math.round(recommendation.stats.attendanceRate) + '%' : '',
+    ].filter(Boolean).join(' · ') : '';
+
     return (
-      <select
-        className="practice-select"
-        value={assignment?.conductor_id || ''}
-        disabled={saving}
-        aria-label={'Проводник, вагон ' + wagonNo + ', место ' + slot + ', ' + formatDate(day.practice_date)}
-        onChange={event => void saveAssignment(day.id, wagonNo, slot, event.target.value)}
-      >
-        <option value="">Не назначен</option>
-        {conductors.map(conductor => {
-          const usedElsewhere = assignments.some(item =>
-            item.practice_day_id === day.id &&
-            item.conductor_id === conductor.id &&
-            !(item.wagon_no === wagonNo && item.slot === slot)
-          );
-          return (
-            <option key={conductor.id} value={conductor.id} disabled={usedElsewhere}>
-              {conductor.name}{usedElsewhere ? ' · уже назначен' : ''}
-            </option>
-          );
-        })}
-      </select>
+      <div className="practice-select-wrap">
+        <select
+          className="practice-select"
+          value={assignment?.conductor_id || ''}
+          disabled={saving}
+          aria-label={'Проводник, вагон ' + wagonNo + ', место ' + slot + ', ' + formatDate(day.practice_date)}
+          onChange={event => void saveAssignment(day.id, wagonNo, slot, event.target.value)}
+        >
+          <option value="">Не назначен</option>
+          {conductors.map(conductor => {
+            const usedElsewhere = assignments.some(item =>
+              item.practice_day_id === day.id &&
+              item.conductor_id === conductor.id &&
+              !(item.wagon_no === wagonNo && item.slot === slot)
+            );
+            return (
+              <option key={conductor.id} value={conductor.id} disabled={usedElsewhere}>
+                {conductor.name}{usedElsewhere ? ' · уже назначен' : ''}
+              </option>
+            );
+          })}
+        </select>
+        {!assignment && (
+          <div className="practice-recommendation">
+            {recommendation ? (
+              <>
+                <div className="practice-recommendation-copy">
+                  <span>Рекомендация сайта</span>
+                  <b>{recommendation.candidate.name} <strong>{Math.round(recommendation.stats?.recommendationScore || 0)}/100</strong></b>
+                  {recommendationDetails && <small>{recommendationDetails}</small>}
+                </div>
+                <button type="button" className="practice-recommend-button" disabled={saving} onClick={() => void saveAssignment(day.id, wagonNo, slot, recommendation.candidate.id)}>
+                  Поставить
+                </button>
+              </>
+            ) : (
+              <small className="practice-recommendation-empty">Пока недостаточно статистики для рекомендации. Выбери проводника вручную.</small>
+            )}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -281,6 +320,53 @@ export default function PracticeAssignments({
           </table>
         </div>
       )}
+      <div className="practice-mobile-list">
+        {days.map(day => (
+          <article className="practice-mobile-day" key={day.id}>
+            <div className="practice-mobile-day-head">
+              <b>{formatDate(day.practice_date)}</b>
+              <button type="button" className="practice-delete-date" title="Удалить дату" onClick={() => void deletePracticeDate(day)}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+            <div className="practice-mobile-lnps">
+              <strong>ЛНП</strong>
+              <div>
+                {lnps.slice(0, 2).map(lnp => <span key={lnp.id}>{lnp.display_name}</span>)}
+                {lnps.length < 2 && <small>Ожидается второй ЛНП</small>}
+              </div>
+            </div>
+            <div className="practice-mobile-wagons">
+              {(showSeventhWagon ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6]).map(wagonNo => (
+                <div className="practice-mobile-wagon" key={wagonNo}>
+                  <div className="practice-mobile-wagon-title">Вагон {wagonNo}</div>
+                  <div className="practice-mobile-slot">
+                    <small>Первый проводник</small>
+                    {renderSelect(day, wagonNo, 1)}
+                  </div>
+                  <div className="practice-mobile-slot">
+                    <small>Второй проводник</small>
+                    {assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) ? (
+                      renderSelect(day, wagonNo, 2)
+                    ) : expandedSlots[day.id + '-' + wagonNo] ? (
+                      renderSelect(day, wagonNo, 2)
+                    ) : (
+                      <button
+                        type="button"
+                        className="practice-add-second"
+                        disabled={saving || !assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1)}
+                        onClick={() => setExpandedSlots(previous => ({ ...previous, [day.id + '-' + wagonNo]: true }))}
+                      >
+                        <Plus size={12} /> Добавить второго
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
       <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. По умолчанию открыты вагоны 1–6. Седьмой добавляется отдельной кнопкой; в каждом вагоне можно назначить одного или двух проводников.</p>
     </section>
   );
