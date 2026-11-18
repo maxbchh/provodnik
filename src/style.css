@@ -551,3 +551,11 @@ input[type=file]{padding:9px;background:#fbfcfe}
 .practice-priority-hint{padding:6px 8px;border:1px dashed #d8e2ed;border-radius:7px;background:#fafcff;color:#718198;font-size:9px;line-height:1.35}
 .practice-mobile-wagon-title{display:flex;align-items:center;justify-content:space-between;gap:7px;flex-wrap:wrap}
 .practice-mobile-wagon-title>span{padding:3px 6px;border-radius:6px;background:#eaf4ff;color:#326da7;font-size:9px;font-weight:700}
+
+
+/* Distinct recommendations by slot; reserve lower-rated candidates for wagon 4 */
+.practice-recommendation-low{border-color:#f0dfc2;background:#fffaf1}
+.practice-recommendation-low .practice-recommendation-copy>span{color:#a87520}
+.practice-recommendation-low .practice-recommendation-copy>b strong{background:#fff0d6;color:#a87520}
+.practice-mobile-wagon-name{color:#34465c;font-size:12px;font-weight:800}
+.practice-mobile-wagon-title .practice-ticket-type{padding:3px 6px;border:1px solid #e2e9f1;border-radius:6px;background:#f3f6fa;color:#65758a;font-size:9px;font-weight:600}
