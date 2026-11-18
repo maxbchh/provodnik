@@ -541,16 +541,6 @@ input[type=file]{padding:9px;background:#fbfcfe}
 }
 
 
-/* Priority staffing order: штабной wagon 3, then 1, then 6 */
-.practice-priority-banner{display:grid;gap:8px;margin:14px 0;padding:12px 13px;border:1px solid #dce8f4;border-radius:10px;background:#f7faff}
-.practice-priority-banner>b{font-size:12px;color:#344b66}
-.practice-priority-banner>div{display:flex;flex-wrap:wrap;gap:6px}
-.practice-priority-banner>small{font-size:10px;line-height:1.5;color:#718198}
-.practice-priority-chip{padding:5px 8px;border:1px solid #dce5ef;border-radius:7px;background:#fff;color:#52657b;font-size:10px;font-weight:700}
-.practice-priority-chip.main{border-color:#b8d3ed;background:#eaf4ff;color:#2f679e}
-.practice-priority-hint{padding:6px 8px;border:1px dashed #d8e2ed;border-radius:7px;background:#fafcff;color:#718198;font-size:9px;line-height:1.35}
-.practice-mobile-wagon-title{display:flex;align-items:center;justify-content:space-between;gap:7px;flex-wrap:wrap}
-.practice-mobile-wagon-title>span{padding:3px 6px;border-radius:6px;background:#eaf4ff;color:#326da7;font-size:9px;font-weight:700}
 
 
 /* Distinct recommendations by slot; reserve lower-rated candidates for wagon 4 */
@@ -559,3 +549,4 @@ input[type=file]{padding:9px;background:#fbfcfe}
 .practice-recommendation-low .practice-recommendation-copy>b strong{background:#fff0d6;color:#a87520}
 .practice-mobile-wagon-name{color:#34465c;font-size:12px;font-weight:800}
 .practice-mobile-wagon-title .practice-ticket-type{padding:3px 6px;border:1px solid #e2e9f1;border-radius:6px;background:#f3f6fa;color:#65758a;font-size:9px;font-weight:600}
+.practice-mobile-wagon-title{display:flex;align-items:center;justify-content:space-between;gap:7px;flex-wrap:wrap}
