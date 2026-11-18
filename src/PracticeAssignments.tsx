@@ -480,7 +480,7 @@ export default function PracticeAssignments({
           })}
         </select>
         {!assignment && recommendation && (
-          <div className={'practice-recommendation ' + (recommendation.lowPriority ? 'practice-recommendation-low' : '')}>
+          <div className="practice-recommendation">
             <div className="practice-recommendation-copy">
               <span>{recommendation.tier === 'ticket' ? 'Продажа обычных билетов · нужен опыт' : recommendation.tier === 'online' ? 'Онлайн-продажи' : 'Подбор второго проводника'}</span>
               <b>{recommendation.person.name} <strong>{Math.round(recommendation.stats.recommendationScore || 0)}/100</strong></b>
@@ -640,21 +640,23 @@ export default function PracticeAssignments({
                     <small>Первый проводник</small>
                     {renderSelect(day, wagonNo, 1)}
                   </div>
-                  <div className="practice-mobile-slot">
-                    <small>Второй проводник</small>
-                    {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] ? (
-                      renderSelect(day, wagonNo, 2)
-                    ) : optionalSecondWagons.includes(wagonNo as 1 | 2 | 6) && assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1) ? (
-                      <button
-                        type="button"
-                        className="practice-add-second"
-                        disabled={saving}
-                        onClick={() => setExpandedSlots(previous => ({ ...previous, [day.id + '-' + wagonNo]: true }))}
-                      >
-                        <Plus size={12} /> Добавить второго
-                      </button>
-                    ) : null}
-                  </div>
+                  {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] || (optionalSecondWagons.includes(wagonNo as 1 | 2 | 6) && assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1)) ? (
+                    <div className="practice-mobile-slot">
+                      <small>Второй проводник</small>
+                      {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] ? (
+                        renderSelect(day, wagonNo, 2)
+                      ) : (
+                        <button
+                          type="button"
+                          className="practice-add-second"
+                          disabled={saving}
+                          onClick={() => setExpandedSlots(previous => ({ ...previous, [day.id + '-' + wagonNo]: true }))}
+                        >
+                          <Plus size={12} /> Добавить второго
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
