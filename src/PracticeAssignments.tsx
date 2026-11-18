@@ -175,11 +175,13 @@ export default function PracticeAssignments({
     const pastDays = days
       .filter(day => day.practice_date < currentDate)
       .sort((a, b) => b.practice_date.localeCompare(a.practice_date));
-    const previousShiftDate = pastDays[0]?.practice_date || '';
     const pastAssignments = assignments.filter(item => {
       const date = days.find(day => day.id === item.practice_day_id)?.practice_date || '';
       return date && date < currentDate;
     });
+    const previousShiftDate = pastDays.find(day =>
+      pastAssignments.some(item => item.practice_day_id === day.id)
+    )?.practice_date || '';
 
     const scoreById = new Map<string, number>();
     for (const person of conductors) {
@@ -205,8 +207,8 @@ export default function PracticeAssignments({
         days.find(day => day.id === item.practice_day_id)?.practice_date === previousShiftDate
       );
     const personRotationPenalty = (personId: string, wagonNo: number) =>
-      wagonHistoryCount(personId, wagonNo) * 22 +
-      (workedThisWagonLastShift(personId, wagonNo) ? 18 : 0);
+      wagonHistoryCount(personId, wagonNo) * 30 +
+      (workedThisWagonLastShift(personId, wagonNo) ? 25 : 0);
 
     const pairKey = (firstId: string, secondId: string) =>
       [firstId, secondId].sort().join('|');
@@ -297,7 +299,8 @@ export default function PracticeAssignments({
 
     const fillBalancedWagon = (wagonNo: number, lowPriority = false) => {
       const firstEmpty = !isOccupied(wagonNo, 1);
-      const secondOpen = isOccupied(wagonNo, 2) || expandedSlots[dayId + '-' + wagonNo];
+      const secondOpen = [3, 1, 6].includes(wagonNo) ||
+        isOccupied(wagonNo, 2) || expandedSlots[dayId + '-' + wagonNo];
       const secondEmpty = secondOpen && !isOccupied(wagonNo, 2);
 
       if (firstEmpty && secondEmpty) {
@@ -341,12 +344,10 @@ export default function PracticeAssignments({
       if (lowFirst) {
         const firstSlot = freeWagonFourSlots[0];
         if (firstSlot === 1 && freeWagonFourSlots.includes(2) && lowCount >= 2) {
+          setPlan(4, 1, lowFirst, true);
           const companion = bestSingle(4, lowFirst.person.id);
-          if (companion && companion.candidate.person.id !== lowFirst.person.id) {
-            setPlan(4, 1, lowFirst, true);
+          if (companion) {
             setPlan(4, 2, companion.candidate, true, lowFirst.score);
-          } else {
-            setPlan(4, 1, lowFirst, true);
           }
         } else {
           setPlan(4, firstSlot, lowFirst, true);
@@ -381,6 +382,8 @@ export default function PracticeAssignments({
       recommendation.stats.criteriaAverage !== null ? 'качества ' + Math.round(recommendation.stats.criteriaAverage) : '',
       recommendation.stats.gradeAverage !== null ? 'оценки ' + recommendation.stats.gradeAverage.toFixed(1) + '/10' : '',
       recommendation.stats.attendanceRate !== null ? 'посещаемость ' + Math.round(recommendation.stats.attendanceRate) + '%' : '',
+      recommendation.pairAverage !== null ? 'средний балл пары ' + Math.round(recommendation.pairAverage) : '',
+      recommendation.historyCount === 0 ? 'в этом вагоне ещё не был' : 'в этом вагоне ранее: ' + recommendation.historyCount + ' смен',
     ].filter(Boolean).join(' · ') : '';
 
     return (
