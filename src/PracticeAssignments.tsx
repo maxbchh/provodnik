@@ -206,9 +206,16 @@ export default function PracticeAssignments({
         item.wagon_no === wagonNo &&
         days.find(day => day.id === item.practice_day_id)?.practice_date === previousShiftDate
       );
+    const wagonPreferenceBonus = (personId: string, wagonNo: number) => {
+      const personalHistory = pastAssignments.filter(item => item.conductor_id === personId);
+      const shiftsWorked = new Set(personalHistory.map(item => item.practice_day_id)).size;
+      if (shiftsWorked < 2 || !personalHistory.length) return 0;
+      const share = personalHistory.filter(item => item.wagon_no === wagonNo).length / personalHistory.length;
+      return share * 32 * Math.min(1, shiftsWorked / 4);
+    };
     const rotationPenalty = (personId: string, wagonNo: number) =>
-      wagonHistoryCount(personId, wagonNo) * 30 +
-      (workedThisWagonLastShift(personId, wagonNo) ? 25 : 0);
+      (workedThisWagonLastShift(personId, wagonNo) ? 10 : 0) +
+      Math.max(0, wagonHistoryCount(personId, wagonNo) - 4) * 2;
     const pairKey = (firstId: string, secondId: string) => [firstId, secondId].sort().join('|');
     const pairHistoryCount = (firstId: string, secondId: string, wagonNo: number) => {
       const key = pairKey(firstId, secondId);
@@ -280,9 +287,13 @@ export default function PracticeAssignments({
             ? pairHistoryCount(partnerId, candidate.person.id, wagonNo) * 28
             : 0;
           const rotation = rotationPenalty(candidate.person.id, wagonNo);
-          const adjusted = tier === 'online'
-            ? -(candidate.score + rotation + repeatPairPenalty)
-            : pairScore - rotation - repeatPairPenalty;
+          const wagonPreference = wagonPreferenceBonus(candidate.person.id, wagonNo);
+          const roleScore = tier === 'online'
+            ? wagonNo === 6
+              ? (100 - candidate.score) * 0.12
+              : (100 - candidate.score) * 0.78
+            : pairScore;
+          const adjusted = roleScore + wagonPreference - rotation - repeatPairPenalty;
           return { candidate, adjusted };
         })
         .sort((a, b) =>
@@ -299,7 +310,9 @@ export default function PracticeAssignments({
           const first = candidates[i];
           const second = candidates[j];
           const adjusted =
-            pairQuality(first.score, second.score) -
+            pairQuality(first.score, second.score) +
+            wagonPreferenceBonus(first.person.id, wagonNo) +
+            wagonPreferenceBonus(second.person.id, wagonNo) -
             rotationPenalty(first.person.id, wagonNo) -
             rotationPenalty(second.person.id, wagonNo) -
             pairHistoryCount(first.person.id, second.person.id, wagonNo) * 28;
@@ -326,11 +339,9 @@ export default function PracticeAssignments({
       }
     };
 
-    // Ticket-selling wagons (1–3) get the more experienced candidates.
-    fillFirstSeat(1, 'ticket');
-    fillFirstSeat(2, 'ticket');
-
-    // Wagon 3 is the only wagon with a second conductor opened by default.
+    // Fill wagon 3 first: its permanent pair is normally the strongest team.
+    // A conductor's regular wagon history is a positive preference, not a reason
+    // to rotate them away from the place where they usually perform well.
     if (!isOccupied(3, 1) && !isOccupied(3, 2)) {
       const pair = bestPair(3);
       if (pair) {
@@ -348,8 +359,16 @@ export default function PracticeAssignments({
       if (!isOccupied(3, 2)) fillSecondSeat(3, 'ticket');
     }
 
-    // Online-sales wagons (4–6) can be staffed by the lower-rated available candidates.
-    [4, 5, 6].forEach(wagonNo => fillFirstSeat(wagonNo, 'online'));
+    // Wagon 6 is flexible: a strong conductor may be recommended there when
+    // their assignment history shows that this is one of their usual wagons.
+    fillFirstSeat(6, 'online');
+
+    // Wagon 1 gets the next strongest suitable candidate; wagon 2 follows.
+    fillFirstSeat(1, 'ticket');
+    fillFirstSeat(2, 'ticket');
+
+    // Wagons 4 and 5 normally take the lower-rated remaining candidates.
+    [4, 5].forEach(wagonNo => fillFirstSeat(wagonNo, 'online'));
 
     // Optional second places are suggested only after the operator opens them:
     // wagons 1, 2, 4, 5, and 6. Wagon 3 always has two places by default.
@@ -398,13 +417,20 @@ export default function PracticeAssignments({
     )?.practice_date || '';
     const scoreOf = (id: string) => Number(remaining.find(item => item.person.id === id)?.stats.recommendationScore ??
       stats.find(item => item.conductorId === id)?.recommendationScore ?? 0);
+    const wagonPreferenceBonus = (personId: string, wagonNo: number) => {
+      const personalHistory = pastAssignments.filter(item => item.conductor_id === personId);
+      const shiftsWorked = new Set(personalHistory.map(item => item.practice_day_id)).size;
+      if (shiftsWorked < 2 || !personalHistory.length) return 0;
+      const share = personalHistory.filter(item => item.wagon_no === wagonNo).length / personalHistory.length;
+      return share * 32 * Math.min(1, shiftsWorked / 4);
+    };
     const rotationPenalty = (personId: string, wagonNo: number) =>
-      pastAssignments.filter(item => item.conductor_id === personId && item.wagon_no === wagonNo).length * 30 +
       (previousShiftDate && pastAssignments.some(item =>
         item.conductor_id === personId &&
         item.wagon_no === wagonNo &&
         days.find(day => day.id === item.practice_day_id)?.practice_date === previousShiftDate
-      ) ? 25 : 0);
+      ) ? 10 : 0) +
+      Math.max(0, pastAssignments.filter(item => item.conductor_id === personId && item.wagon_no === wagonNo).length - 4) * 2;
     const pairRepeatPenalty = (firstId: string, secondId: string, wagonNo: number) => {
       const key = [firstId, secondId].sort().join('|');
       const previousPairDates = new Set<string>();
@@ -431,7 +457,8 @@ export default function PracticeAssignments({
         const candidateScore = Number(candidate.stats.recommendationScore);
         const avg = (scoreOf(partnerId) + candidateScore) / 2;
         const balancedQuality = avg * 0.8 + (100 - Math.abs(avg - average)) * 0.2;
-        const adjusted = balancedQuality -
+        const adjusted = balancedQuality +
+          wagonPreferenceBonus(candidate.person.id, wagonNo) -
           rotationPenalty(candidate.person.id, wagonNo) -
           pairRepeatPenalty(partnerId, candidate.person.id, wagonNo);
         if (!best || adjusted > best.adjusted) {
@@ -532,7 +559,7 @@ export default function PracticeAssignments({
       <div className="section-heading">
         <div>
           <h3>Журнал назначений на практику</h3>
-          <p className="muted">Вагоны 1–3 — обычные билеты, сюда сайт рекомендует проводников с более высоким рейтингом. Вагоны 4–6 — онлайн-продажи, сюда подбираются остальные свободные проводники.</p>
+          <p className="muted">Подбор учитывает рейтинг и историю назначений: сильных проводников сайт обычно предлагает в вагоны 3 и 1, а в вагон 6 может поставить опытного человека, если он чаще работает там. В вагоны 4 и 5 обычно идут остальные свободные проводники.</p>
         </div>
         <span className="pill">{days.length} дат</span>
       </div>
@@ -640,7 +667,7 @@ export default function PracticeAssignments({
                     <small>Первый проводник</small>
                     {renderSelect(day, wagonNo, 1)}
                   </div>
-                  {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] || (optionalSecondWagons.includes(wagonNo as 1 | 2 | 6) && assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1)) ? (
+                  {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] || (optionalSecondWagons.includes(wagonNo as 1 | 2 | 4 | 5 | 6) && assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1)) ? (
                     <div className="practice-mobile-slot">
                       <small>Второй проводник</small>
                       {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] ? (
@@ -663,7 +690,7 @@ export default function PracticeAssignments({
           </article>
         ))}
       </div>
-      <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. В вагоне 3 всегда два места. Второго проводника вручную можно добавить в вагоны 1, 2, 4, 5 и 6.</p>
+      <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. В вагоне 3 всегда два места. Второго проводника вручную можно добавить в вагоны 1, 2, 4, 5 и 6. Рекомендации учитывают рейтинг, привычные вагоны по прошлым назначениям и ротацию.</p>
     </section>
   );
 }
