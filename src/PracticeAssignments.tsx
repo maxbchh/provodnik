@@ -58,7 +58,7 @@ export default function PracticeAssignments({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const defaultSecondWagons = [3] as const;
-  const optionalSecondWagons = [1, 2, 6] as const;
+  const optionalSecondWagons = [1, 2, 4, 5, 6] as const;
   const visibleWagons = showSeventhWagon ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6];
   const reload = async () => {
     setLoading(true);
@@ -352,7 +352,7 @@ export default function PracticeAssignments({
     [4, 5, 6].forEach(wagonNo => fillFirstSeat(wagonNo, 'online'));
 
     // Optional second places are suggested only after the operator opens them:
-    // wagons 1, 2, and 6. Wagon 4 and 5 remain single-person wagons.
+    // wagons 1, 2, 4, 5, and 6. Wagon 3 always has two places by default.
     for (const wagonNo of optionalSecondWagons) {
       if (expandedSlots[dayId + '-' + wagonNo]) {
         fillSecondSeat(wagonNo, 'pair');
@@ -369,7 +369,7 @@ export default function PracticeAssignments({
     );
     if (!firstSeatsFilled) return null;
 
-    const freeTargets = [3, 1, 2, 6].filter(wagonNo =>
+    const freeTargets = [1, 2, 4, 5, 6].filter(wagonNo =>
       !dayAssignments.some(item => item.wagon_no === wagonNo && item.slot === 2)
     );
     if (!freeTargets.length) return null;
@@ -595,7 +595,7 @@ export default function PracticeAssignments({
                           {renderSelect(day, wagonNo, 1)}
                           {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] ? (
                             renderSelect(day, wagonNo, 2)
-                          ) : optionalSecondWagons.includes(wagonNo as 1 | 2 | 6) && assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1) ? (
+                          ) : optionalSecondWagons.includes(wagonNo as 1 | 2 | 4 | 5 | 6) && assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1) ? (
                             <button
                               type="button"
                               className="practice-add-second"
@@ -663,7 +663,7 @@ export default function PracticeAssignments({
           </article>
         ))}
       </div>
-      <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. По умолчанию по два места только в вагоне 3. Второго проводника вручную можно добавить в вагоны 1, 2 и 6; в вагонах 4 и 5 остаётся по одному месту.</p>
+      <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. В вагоне 3 всегда два места. Второго проводника вручную можно добавить в вагоны 1, 2, 4, 5 и 6.</p>
     </section>
   );
 }
