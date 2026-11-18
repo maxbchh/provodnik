@@ -57,6 +57,17 @@ export default function PracticeAssignments({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const priorityWagons = [3, 1, 6] as const;
+  const visibleWagons = showSeventhWagon ? [3, 1, 6, 2, 4, 5, 7] : [3, 1, 6, 2, 4, 5];
+  const getNextPrioritySlot = (dayId: string) => {
+    for (const wagonNo of priorityWagons) {
+      for (const slot of [1, 2]) {
+        const occupied = assignments.some(item => item.practice_day_id === dayId && item.wagon_no === wagonNo && item.slot === slot);
+        if (!occupied) return { wagonNo, slot };
+      }
+    }
+    return null;
+  };
 
   const reload = async () => {
     setLoading(true);
@@ -170,6 +181,9 @@ export default function PracticeAssignments({
     const assignment = assignments.find(item =>
       item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === slot
     );
+    const nextPriority = getNextPrioritySlot(day.id);
+    const isNextPrioritySlot = !!nextPriority && nextPriority.wagonNo === wagonNo && nextPriority.slot === slot;
+    const isPriorityWagon = (priorityWagons as readonly number[]).includes(wagonNo);
     const recommendation = conductors
       .filter(candidate => !assignments.some(item =>
         item.practice_day_id === day.id &&
@@ -178,13 +192,17 @@ export default function PracticeAssignments({
       ))
       .map(candidate => ({ candidate, stats: stats.find(item => item.conductorId === candidate.id) }))
       .filter(item => item.stats && item.stats.recommendationScore !== null && Number.isFinite(item.stats.recommendationScore))
-      .sort((a, b) => (b.stats?.recommendationScore || 0) - (a.stats?.recommendationScore || 0))[0];
+      .sort((a, b) => (b.stats?.recommendationScore || 0) - (a.stats?.recommendationScore || 0) || a.candidate.name.localeCompare(b.candidate.name, 'ru'))[0];
     const recommendationDetails = recommendation?.stats ? [
       recommendation.stats.rating !== null ? 'рейтинг ' + Math.round(recommendation.stats.rating) : '',
       recommendation.stats.criteriaAverage !== null ? 'качества ' + Math.round(recommendation.stats.criteriaAverage) : '',
       recommendation.stats.gradeAverage !== null ? 'оценки ' + recommendation.stats.gradeAverage.toFixed(1) + '/10' : '',
       recommendation.stats.attendanceRate !== null ? 'посещаемость ' + Math.round(recommendation.stats.attendanceRate) + '%' : '',
     ].filter(Boolean).join(' · ') : '';
+    const canRecommendHere = !assignment && (!nextPriority || isNextPrioritySlot);
+    const nextPriorityLabel = nextPriority
+      ? 'Сначала заполни вагон ' + nextPriority.wagonNo + ', место ' + nextPriority.slot + (nextPriority.wagonNo === 3 ? ' · штабной' : '')
+      : '';
 
     return (
       <div className="practice-select-wrap">
@@ -209,12 +227,12 @@ export default function PracticeAssignments({
             );
           })}
         </select>
-        {!assignment && (
+        {!assignment && canRecommendHere && (
           <div className="practice-recommendation">
             {recommendation ? (
               <>
                 <div className="practice-recommendation-copy">
-                  <span>Рекомендация сайта</span>
+                  <span>{isPriorityWagon ? 'Приоритетное назначение' : 'Рекомендация сайта'}</span>
                   <b>{recommendation.candidate.name} <strong>{Math.round(recommendation.stats?.recommendationScore || 0)}/100</strong></b>
                   {recommendationDetails && <small>{recommendationDetails}</small>}
                 </div>
@@ -223,9 +241,12 @@ export default function PracticeAssignments({
                 </button>
               </>
             ) : (
-              <small className="practice-recommendation-empty">Пока недостаточно статистики для рекомендации. Выбери проводника вручную.</small>
+              <small className="practice-recommendation-empty">Недостаточно статистики для рекомендации. Выбери проводника вручную.</small>
             )}
           </div>
+        )}
+        {!assignment && nextPriority && !isNextPrioritySlot && (
+          <div className="practice-priority-hint">{nextPriorityLabel}</div>
         )}
       </div>
     );
@@ -255,6 +276,11 @@ export default function PracticeAssignments({
       {notice && <div className="alert success">{notice}</div>}
 
       {canShowSeventhWagonControl(showSeventhWagon, setShowSeventhWagon)}
+      <div className="practice-priority-banner">
+        <b>Приоритет распределения: по 2 проводника в каждый вагон</b>
+        <div><span className="practice-priority-chip main">1 · Вагон 3 — штабной</span><span className="practice-priority-chip">2 · Вагон 1</span><span className="practice-priority-chip">3 · Вагон 6</span></div>
+        <small>Если проводников не хватает, сначала полностью заполняется штабной вагон 3, затем вагон 1 и после него вагон 6. Остальные вагоны доступны для ручного назначения.</small>
+      </div>
       {loading ? <div className="empty">Загружаем журнал назначений…</div> : days.length === 0 ? (
         <div className="empty">Пока нет дат практики. Добавь первую дату — она появится отдельной колонкой.</div>
       ) : (
@@ -276,11 +302,11 @@ export default function PracticeAssignments({
               </tr>
             </thead>
             <tbody>
-              {[0, 1, 2, 3, 4, 5, 6, ...(showSeventhWagon ? [7] : [])].map(wagonNo => (
+              {[0, ...visibleWagons].map(wagonNo => (
                 <tr key={wagonNo}>
                   <th>
                     <span className="practice-wagon-number">{wagonNo}</span>
-                    <small>{wagonNo === 0 ? 'ЛНП' : 'вагон'}</small>
+                    <small>{wagonNo === 0 ? 'ЛНП' : wagonNo === 3 ? 'штабной · приоритет №1' : (priorityWagons as readonly number[]).includes(wagonNo) ? 'приоритет' : 'вагон'}</small>
                   </th>
                   {days.map(day => (
                     <td key={day.id}>
@@ -296,7 +322,7 @@ export default function PracticeAssignments({
                       ) : (
                         <div className="practice-cell">
                           {renderSelect(day, wagonNo, 1)}
-                          {assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) ? (
+                          {(priorityWagons as readonly number[]).includes(wagonNo) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) ? (
                             renderSelect(day, wagonNo, 2)
                           ) : expandedSlots[day.id + '-' + wagonNo] ? (
                             renderSelect(day, wagonNo, 2)
@@ -337,16 +363,16 @@ export default function PracticeAssignments({
               </div>
             </div>
             <div className="practice-mobile-wagons">
-              {(showSeventhWagon ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6]).map(wagonNo => (
+              {visibleWagons.map(wagonNo => (
                 <div className="practice-mobile-wagon" key={wagonNo}>
-                  <div className="practice-mobile-wagon-title">Вагон {wagonNo}</div>
+                  <div className="practice-mobile-wagon-title">Вагон {wagonNo}{wagonNo === 3 ? ' · Штабной' : ''}{(priorityWagons as readonly number[]).includes(wagonNo) ? <span>Приоритет</span> : null}</div>
                   <div className="practice-mobile-slot">
                     <small>Первый проводник</small>
                     {renderSelect(day, wagonNo, 1)}
                   </div>
                   <div className="practice-mobile-slot">
                     <small>Второй проводник</small>
-                    {assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) ? (
+                    {(priorityWagons as readonly number[]).includes(wagonNo) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) ? (
                       renderSelect(day, wagonNo, 2)
                     ) : expandedSlots[day.id + '-' + wagonNo] ? (
                       renderSelect(day, wagonNo, 2)
