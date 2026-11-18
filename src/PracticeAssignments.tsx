@@ -333,7 +333,15 @@ export default function PracticeAssignments({
     );
     const spareCount = Math.max(0, remainingCandidates.length - emptyRequiredSeats);
     const lowCount = Math.min(freeWagonFourSlots.length, spareCount);
-    if (lowCount > 0) {
+    if (lowCount > 0 && isOccupied(4, 1) && freeWagonFourSlots.includes(2)) {
+      // If a conductor is already in wagon 4, recommend a compatible partner
+      // using the pair's average score instead of selecting a second "low" person.
+      const existingPartner = assigned.find(item => item.wagon_no === 4 && item.slot === 1);
+      const companion = existingPartner ? bestSingle(4, existingPartner.conductor_id) : null;
+      if (companion) {
+        setPlan(4, 2, companion.candidate, false, scoreById.get(existingPartner!.conductor_id) ?? null);
+      }
+    } else if (lowCount > 0) {
       const lowCandidates = remainingCandidates
         .map(candidate => ({
           ...candidate,
@@ -347,10 +355,12 @@ export default function PracticeAssignments({
           setPlan(4, 1, lowFirst, true);
           const companion = bestSingle(4, lowFirst.person.id);
           if (companion) {
-            setPlan(4, 2, companion.candidate, true, lowFirst.score);
+            setPlan(4, 2, companion.candidate, false, lowFirst.score);
           }
         } else {
-          setPlan(4, firstSlot, lowFirst, true);
+          const existingPartner = assigned.find(item => item.wagon_no === 4 && item.slot === 2);
+          const partnerScore = existingPartner ? scoreById.get(existingPartner.conductor_id) ?? null : null;
+          setPlan(4, firstSlot, lowFirst, true, partnerScore);
         }
       }
     }
