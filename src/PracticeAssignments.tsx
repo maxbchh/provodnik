@@ -59,16 +59,6 @@ export default function PracticeAssignments({
   const [notice, setNotice] = useState('');
   const priorityWagons = [3, 1, 6] as const;
   const visibleWagons = showSeventhWagon ? [3, 1, 6, 2, 4, 5, 7] : [3, 1, 6, 2, 4, 5];
-  const getNextPrioritySlot = (dayId: string) => {
-    for (const wagonNo of priorityWagons) {
-      for (const slot of [1, 2]) {
-        const occupied = assignments.some(item => item.practice_day_id === dayId && item.wagon_no === wagonNo && item.slot === slot);
-        if (!occupied) return { wagonNo, slot };
-      }
-    }
-    return null;
-  };
-
   const reload = async () => {
     setLoading(true);
     setError('');
@@ -177,32 +167,79 @@ export default function PracticeAssignments({
     setSaving(false);
   };
 
+  const buildRecommendationPlan = (dayId: string) => {
+    const assigned = assignments.filter(item => item.practice_day_id === dayId);
+    const assignedIds = new Set(assigned.map(item => item.conductor_id));
+    const ranked = conductors
+      .filter(person => !assignedIds.has(person.id))
+      .map(person => ({ person, stats: stats.find(item => item.conductorId === person.id) }))
+      .filter(item => item.stats && item.stats.recommendationScore !== null && Number.isFinite(item.stats.recommendationScore))
+      .sort((a, b) =>
+        (b.stats!.recommendationScore! - a.stats!.recommendationScore!) ||
+        a.person.name.localeCompare(b.person.name, 'ru')
+      );
+
+    const isOccupied = (wagonNo: number, slot: number) =>
+      assigned.some(item => item.wagon_no === wagonNo && item.slot === slot);
+    const emptyPriority = [3, 1, 6].flatMap(wagonNo =>
+      [1, 2].filter(slot => !isOccupied(wagonNo, slot)).map(slot => ({ wagonNo, slot }))
+    );
+    const emptyWagonFour = [1, 2]
+      .filter(slot => !isOccupied(4, slot))
+      .map(slot => ({ wagonNo: 4, slot }));
+    const emptyOther = visibleWagons
+      .filter(wagonNo => ![3, 1, 6, 4].includes(wagonNo))
+      .flatMap(wagonNo => [1, 2]
+        .filter(slot => !isOccupied(wagonNo, slot))
+        .map(slot => ({ wagonNo, slot }))
+      );
+
+    // Reserve the lowest-rated available people for wagon 4, but only after
+    // there are enough rated candidates to fill every currently empty priority seat.
+    const surplusAfterPriority = Math.max(0, ranked.length - emptyPriority.length);
+    const wagonFourCount = Math.min(emptyWagonFour.length, surplusAfterPriority);
+    const wagonFourPeople = wagonFourCount
+      ? ranked.slice(ranked.length - wagonFourCount).reverse()
+      : [];
+    const reservedForFour = new Set(wagonFourPeople.map(item => item.person.id));
+    const strongPool = ranked.filter(item => !reservedForFour.has(item.person.id));
+
+    const plan = new Map<string, { person: Conductor; stats: ConductorStats; lowPriority: boolean }>();
+    const setPlan = (slot: { wagonNo: number; slot: number }, candidate: typeof ranked[number], lowPriority = false) => {
+      plan.set(slot.wagonNo + '-' + slot.slot, {
+        person: candidate.person,
+        stats: candidate.stats!,
+        lowPriority,
+      });
+    };
+
+    emptyPriority.forEach((slot, index) => {
+      const candidate = strongPool[index];
+      if (candidate) setPlan(slot, candidate);
+    });
+    emptyOther.forEach((slot, index) => {
+      const candidate = strongPool[emptyPriority.length + index];
+      if (candidate) setPlan(slot, candidate);
+    });
+    emptyWagonFour.slice(0, wagonFourCount).forEach((slot, index) => {
+      const candidate = wagonFourPeople[index];
+      if (candidate) setPlan(slot, candidate, true);
+    });
+
+    return plan;
+  };
+
   const renderSelect = (day: PracticeDay, wagonNo: number, slot: number) => {
     const assignment = assignments.find(item =>
       item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === slot
     );
-    const nextPriority = getNextPrioritySlot(day.id);
-    const isNextPrioritySlot = !!nextPriority && nextPriority.wagonNo === wagonNo && nextPriority.slot === slot;
-    const isPriorityWagon = (priorityWagons as readonly number[]).includes(wagonNo);
-    const recommendation = conductors
-      .filter(candidate => !assignments.some(item =>
-        item.practice_day_id === day.id &&
-        item.conductor_id === candidate.id &&
-        !(item.wagon_no === wagonNo && item.slot === slot)
-      ))
-      .map(candidate => ({ candidate, stats: stats.find(item => item.conductorId === candidate.id) }))
-      .filter(item => item.stats && item.stats.recommendationScore !== null && Number.isFinite(item.stats.recommendationScore))
-      .sort((a, b) => (b.stats?.recommendationScore || 0) - (a.stats?.recommendationScore || 0) || a.candidate.name.localeCompare(b.candidate.name, 'ru'))[0];
-    const recommendationDetails = recommendation?.stats ? [
+    const recommendation = buildRecommendationPlan(day.id).get(wagonNo + '-' + slot);
+    const recommendationDetails = recommendation ? [
       recommendation.stats.rating !== null ? 'рейтинг ' + Math.round(recommendation.stats.rating) : '',
       recommendation.stats.criteriaAverage !== null ? 'качества ' + Math.round(recommendation.stats.criteriaAverage) : '',
       recommendation.stats.gradeAverage !== null ? 'оценки ' + recommendation.stats.gradeAverage.toFixed(1) + '/10' : '',
       recommendation.stats.attendanceRate !== null ? 'посещаемость ' + Math.round(recommendation.stats.attendanceRate) + '%' : '',
     ].filter(Boolean).join(' · ') : '';
-    const canRecommendHere = !assignment && (!nextPriority || isNextPrioritySlot);
-    const nextPriorityLabel = nextPriority
-      ? 'Сначала заполни вагон ' + nextPriority.wagonNo + ', место ' + nextPriority.slot + (nextPriority.wagonNo === 3 ? ' · штабной' : '')
-      : '';
 
     return (
       <div className="practice-select-wrap">
@@ -227,26 +264,24 @@ export default function PracticeAssignments({
             );
           })}
         </select>
-        {!assignment && canRecommendHere && (
-          <div className="practice-recommendation">
-            {recommendation ? (
-              <>
-                <div className="practice-recommendation-copy">
-                  <span>{isPriorityWagon ? 'Приоритетное назначение' : 'Рекомендация сайта'}</span>
-                  <b>{recommendation.candidate.name} <strong>{Math.round(recommendation.stats?.recommendationScore || 0)}/100</strong></b>
-                  {recommendationDetails && <small>{recommendationDetails}</small>}
-                </div>
-                <button type="button" className="practice-recommend-button" disabled={saving} onClick={() => void saveAssignment(day.id, wagonNo, slot, recommendation.candidate.id)}>
-                  Поставить
-                </button>
-              </>
-            ) : (
-              <small className="practice-recommendation-empty">Недостаточно статистики для рекомендации. Выбери проводника вручную.</small>
-            )}
+        {!assignment && recommendation && (
+          <div className={'practice-recommendation ' + (recommendation.lowPriority ? 'practice-recommendation-low' : '')}>
+            <div className="practice-recommendation-copy">
+              <span>{recommendation.lowPriority ? 'Низкий рейтинг · подбор для вагона 4' : [3, 1, 6].includes(wagonNo) ? 'Приоритетное назначение' : 'Рекомендация сайта'}</span>
+              <b>{recommendation.person.name} <strong>{Math.round(recommendation.stats.recommendationScore || 0)}/100</strong></b>
+              {recommendationDetails && <small>{recommendationDetails}</small>}
+            </div>
+            <button type="button" className="practice-recommend-button" disabled={saving} onClick={() => void saveAssignment(day.id, wagonNo, slot, recommendation.person.id)}>
+              Поставить
+            </button>
           </div>
         )}
-        {!assignment && nextPriority && !isNextPrioritySlot && (
-          <div className="practice-priority-hint">{nextPriorityLabel}</div>
+        {!assignment && !recommendation && (
+          <small className="practice-recommendation-empty">
+            {wagonNo === 4
+              ? 'Вагон 4 получает кандидата с более низким рейтингом после заполнения приоритетных мест.'
+              : 'Рекомендация появится, когда останется свободный кандидат с заполненной статистикой.'}
+          </small>
         )}
       </div>
     );
@@ -306,7 +341,7 @@ export default function PracticeAssignments({
                 <tr key={wagonNo}>
                   <th>
                     <span className="practice-wagon-number">{wagonNo}</span>
-                    <small>{wagonNo === 0 ? 'ЛНП' : wagonNo === 3 ? 'штабной · приоритет №1' : (priorityWagons as readonly number[]).includes(wagonNo) ? 'приоритет' : 'вагон'}</small>
+                    <small>{wagonNo === 0 ? 'ЛНП' : wagonNo === 3 ? 'штабной · обычные билеты · приоритет №1' : wagonNo <= 2 ? 'обычные билеты' : wagonNo <= 6 ? 'онлайн-билеты' : 'дополнительный вагон'}</small>
                   </th>
                   {days.map(day => (
                     <td key={day.id}>
@@ -365,7 +400,7 @@ export default function PracticeAssignments({
             <div className="practice-mobile-wagons">
               {visibleWagons.map(wagonNo => (
                 <div className="practice-mobile-wagon" key={wagonNo}>
-                  <div className="practice-mobile-wagon-title">Вагон {wagonNo}{wagonNo === 3 ? ' · Штабной' : ''}{(priorityWagons as readonly number[]).includes(wagonNo) ? <span>Приоритет</span> : null}</div>
+                  <div className="practice-mobile-wagon-title"><span className="practice-mobile-wagon-name">Вагон {wagonNo}{wagonNo === 3 ? ' · Штабной' : ''}</span><span className="practice-ticket-type">{wagonNo <= 3 ? 'Обычные билеты' : wagonNo <= 6 ? 'Онлайн-билеты' : 'Дополнительный вагон'}</span>{(priorityWagons as readonly number[]).includes(wagonNo) ? <span>Приоритет</span> : null}</div>
                   <div className="practice-mobile-slot">
                     <small>Первый проводник</small>
                     {renderSelect(day, wagonNo, 1)}
