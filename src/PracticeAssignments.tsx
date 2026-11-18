@@ -57,7 +57,8 @@ export default function PracticeAssignments({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const priorityWagons = [3, 1, 6] as const;
+  const defaultSecondWagons = [3] as const;
+  const optionalSecondWagons = [1, 2, 6] as const;
   const visibleWagons = showSeventhWagon ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6];
   const reload = async () => {
     setLoading(true);
@@ -170,8 +171,7 @@ export default function PracticeAssignments({
   const buildRecommendationPlan = (dayId: string) => {
     const assigned = assignments.filter(item => item.practice_day_id === dayId);
     const assignedIds = new Set(assigned.map(item => item.conductor_id));
-    const currentDay = days.find(day => day.id === dayId);
-    const currentDate = currentDay?.practice_date || '';
+    const currentDate = days.find(day => day.id === dayId)?.practice_date || '';
     const pastDays = days
       .filter(day => day.practice_date < currentDate)
       .sort((a, b) => b.practice_date.localeCompare(a.practice_date));
@@ -185,16 +185,16 @@ export default function PracticeAssignments({
 
     const scoreById = new Map<string, number>();
     for (const person of conductors) {
-      const item = stats.find(entry => entry.conductorId === person.id);
-      if (item && item.recommendationScore !== null && Number.isFinite(item.recommendationScore)) {
-        scoreById.set(person.id, item.recommendationScore);
+      const personStats = stats.find(item => item.conductorId === person.id);
+      if (personStats && personStats.recommendationScore !== null && Number.isFinite(personStats.recommendationScore)) {
+        scoreById.set(person.id, personStats.recommendationScore);
       }
     }
     const available = () => conductors
       .filter(person => !assignedIds.has(person.id) && scoreById.has(person.id))
       .map(person => ({
         person,
-        stats: stats.find(entry => entry.conductorId === person.id)!,
+        stats: stats.find(item => item.conductorId === person.id)!,
         score: scoreById.get(person.id)!,
       }));
 
@@ -206,12 +206,10 @@ export default function PracticeAssignments({
         item.wagon_no === wagonNo &&
         days.find(day => day.id === item.practice_day_id)?.practice_date === previousShiftDate
       );
-    const personRotationPenalty = (personId: string, wagonNo: number) =>
+    const rotationPenalty = (personId: string, wagonNo: number) =>
       wagonHistoryCount(personId, wagonNo) * 30 +
       (workedThisWagonLastShift(personId, wagonNo) ? 25 : 0);
-
-    const pairKey = (firstId: string, secondId: string) =>
-      [firstId, secondId].sort().join('|');
+    const pairKey = (firstId: string, secondId: string) => [firstId, secondId].sort().join('|');
     const pairHistoryCount = (firstId: string, secondId: string, wagonNo: number) => {
       const key = pairKey(firstId, secondId);
       const previousDays = new Set<string>();
@@ -227,159 +225,221 @@ export default function PracticeAssignments({
       }
       return previousDays.size;
     };
-
     const allScores = Array.from(scoreById.values());
     const groupAverage = allScores.length
       ? allScores.reduce((sum, value) => sum + value, 0) / allScores.length
       : 70;
+    const pairAverage = (firstScore: number, secondScore: number) => (firstScore + secondScore) / 2;
     const pairQuality = (firstScore: number, secondScore: number) => {
-      const average = (firstScore + secondScore) / 2;
-      // Judge the two-person team by its average, not by each person's score alone.
-      // This allows a 49 + 90 team to be considered a reasonable pair.
+      const average = pairAverage(firstScore, secondScore);
       const balance = 100 - Math.abs(average - groupAverage);
       return average * 0.8 + balance * 0.2;
     };
 
-    const isOccupied = (wagonNo: number, slot: number) =>
-      assigned.some(item => item.wagon_no === wagonNo && item.slot === slot);
     const plan = new Map<string, {
       person: Conductor;
       stats: ConductorStats;
-      lowPriority: boolean;
+      tier: 'ticket' | 'online' | 'pair';
       historyCount: number;
       pairAverage: number | null;
     }>();
+    const isOccupied = (wagonNo: number, slot: number) =>
+      assigned.some(item => item.wagon_no === wagonNo && item.slot === slot);
+    const plannedPerson = (wagonNo: number, slot: number) =>
+      plan.get(wagonNo + '-' + slot)?.person || null;
+    const conductorScore = (personId: string) => scoreById.get(personId) ?? null;
     const setPlan = (
       wagonNo: number,
       slot: number,
       candidate: ReturnType<typeof available>[number],
-      lowPriority = false,
+      tier: 'ticket' | 'online' | 'pair',
       partnerScore: number | null = null
     ) => {
       plan.set(wagonNo + '-' + slot, {
         person: candidate.person,
         stats: candidate.stats,
-        lowPriority,
+        tier,
         historyCount: wagonHistoryCount(candidate.person.id, wagonNo),
-        pairAverage: partnerScore === null ? null : (candidate.score + partnerScore) / 2,
+        pairAverage: partnerScore === null ? null : pairAverage(candidate.score, partnerScore),
       });
       assignedIds.add(candidate.person.id);
     };
 
-    const bestSingle = (wagonNo: number, partnerId?: string) => {
-      const partnerScore = partnerId ? scoreById.get(partnerId) : undefined;
+    const bestCandidate = (
+      wagonNo: number,
+      tier: 'ticket' | 'online' | 'pair',
+      partnerId?: string
+    ) => {
+      const partnerScore = partnerId ? conductorScore(partnerId) : null;
       return available()
         .map(candidate => {
-          const pairScore = partnerScore === undefined ? candidate.score : pairQuality(partnerScore, candidate.score);
-          const repeatPenalty = partnerId ? pairHistoryCount(partnerId, candidate.person.id, wagonNo) * 28 : 0;
-          const adjusted = pairScore - personRotationPenalty(candidate.person.id, wagonNo) - repeatPenalty;
-          return { candidate, adjusted, pairScore };
+          const pairScore = partnerScore === null
+            ? candidate.score
+            : pairQuality(partnerScore, candidate.score);
+          const repeatPairPenalty = partnerId
+            ? pairHistoryCount(partnerId, candidate.person.id, wagonNo) * 28
+            : 0;
+          const rotation = rotationPenalty(candidate.person.id, wagonNo);
+          const adjusted = tier === 'online'
+            ? -(candidate.score + rotation + repeatPairPenalty)
+            : pairScore - rotation - repeatPairPenalty;
+          return { candidate, adjusted };
         })
-        .sort((a, b) => b.adjusted - a.adjusted || a.candidate.person.name.localeCompare(b.candidate.person.name, 'ru'))[0] || null;
+        .sort((a, b) =>
+          b.adjusted - a.adjusted ||
+          a.candidate.person.name.localeCompare(b.candidate.person.name, 'ru')
+        )[0] || null;
     };
 
     const bestPair = (wagonNo: number) => {
       const candidates = available();
-      let best: { first: typeof candidates[number]; second: typeof candidates[number]; adjusted: number; pairScore: number } | null = null;
+      let best: { first: typeof candidates[number]; second: typeof candidates[number]; adjusted: number } | null = null;
       for (let i = 0; i < candidates.length; i += 1) {
         for (let j = i + 1; j < candidates.length; j += 1) {
           const first = candidates[i];
           const second = candidates[j];
-          const pairScore = pairQuality(first.score, second.score);
-          const historyPenalty =
-            personRotationPenalty(first.person.id, wagonNo) +
-            personRotationPenalty(second.person.id, wagonNo);
-          const repeatPenalty = pairHistoryCount(first.person.id, second.person.id, wagonNo) * 28;
-          const adjusted = pairScore - historyPenalty - repeatPenalty;
-          if (!best || adjusted > best.adjusted) best = { first, second, adjusted, pairScore };
+          const adjusted =
+            pairQuality(first.score, second.score) -
+            rotationPenalty(first.person.id, wagonNo) -
+            rotationPenalty(second.person.id, wagonNo) -
+            pairHistoryCount(first.person.id, second.person.id, wagonNo) * 28;
+          if (!best || adjusted > best.adjusted) best = { first, second, adjusted };
         }
       }
       return best;
     };
 
-    const fillBalancedWagon = (wagonNo: number, lowPriority = false) => {
-      const firstEmpty = !isOccupied(wagonNo, 1);
-      const secondOpen = [3, 1, 6].includes(wagonNo) ||
-        isOccupied(wagonNo, 2) || expandedSlots[dayId + '-' + wagonNo];
-      const secondEmpty = secondOpen && !isOccupied(wagonNo, 2);
-
-      if (firstEmpty && secondEmpty) {
-        const pair = bestPair(wagonNo);
-        if (pair) {
-          setPlan(wagonNo, 1, pair.first, lowPriority);
-          setPlan(wagonNo, 2, pair.second, lowPriority, pair.first.score);
-        }
-        return;
-      }
-
-      const openSlot = firstEmpty ? 1 : secondEmpty ? 2 : null;
-      if (openSlot === null) return;
-      const existingPartner = assigned.find(item =>
-        item.wagon_no === wagonNo && item.slot === (openSlot === 1 ? 2 : 1)
-      );
-      const match = bestSingle(wagonNo, existingPartner?.conductor_id);
-      if (match) setPlan(wagonNo, openSlot, match.candidate, lowPriority, existingPartner ? match.candidate.stats.recommendationScore === null ? null : scoreById.get(existingPartner.conductor_id) ?? null : null);
+    const fillFirstSeat = (wagonNo: number, tier: 'ticket' | 'online') => {
+      if (isOccupied(wagonNo, 1)) return;
+      const candidate = bestCandidate(wagonNo, tier);
+      if (candidate) setPlan(wagonNo, 1, candidate.candidate, tier);
     };
 
-    // First staff the required wagons; historical frequency rotates people between shifts.
-    [3, 1, 6].forEach(wagonNo => fillBalancedWagon(wagonNo));
+    const fillSecondSeat = (wagonNo: number, tier: 'ticket' | 'pair') => {
+      if (isOccupied(wagonNo, 2)) return;
+      const partner = assigned.find(item => item.wagon_no === wagonNo && item.slot === 1);
+      const partnerId = partner?.conductor_id || plannedPerson(wagonNo, 1)?.id;
+      if (!partnerId) return;
+      const candidate = bestCandidate(wagonNo, tier === 'ticket' ? 'ticket' : 'pair', partnerId);
+      if (candidate) {
+        setPlan(wagonNo, 2, candidate.candidate, tier, conductorScore(partnerId));
+      }
+    };
 
-    // Wagon 4 gets a lower-rated spare candidate only after the required seats are covered.
-    const emptyRequiredSeats = [3, 1, 6].reduce((total, wagonNo) =>
-      total + [1, 2].filter(slot => !isOccupied(wagonNo, slot) && !plan.has(wagonNo + '-' + slot)).length, 0);
-    const remainingCandidates = available();
-    const freeWagonFourSlots = [1, 2].filter(slot =>
-      !isOccupied(4, slot) && (slot === 1 || expandedSlots[dayId + '-4'])
-    );
-    const spareCount = Math.max(0, remainingCandidates.length - emptyRequiredSeats);
-    const lowCount = Math.min(freeWagonFourSlots.length, spareCount);
-    if (lowCount > 0 && isOccupied(4, 1) && freeWagonFourSlots.includes(2)) {
-      // If a conductor is already in wagon 4, recommend a compatible partner
-      // using the pair's average score instead of selecting a second "low" person.
-      const existingPartner = assigned.find(item => item.wagon_no === 4 && item.slot === 1);
-      const companion = existingPartner ? bestSingle(4, existingPartner.conductor_id) : null;
-      if (companion) {
-        setPlan(4, 2, companion.candidate, false, scoreById.get(existingPartner!.conductor_id) ?? null);
+    // Ticket-selling wagons (1–3) get the more experienced candidates.
+    fillFirstSeat(1, 'ticket');
+    fillFirstSeat(2, 'ticket');
+
+    // Wagon 3 is the only wagon with a second conductor opened by default.
+    if (!isOccupied(3, 1) && !isOccupied(3, 2)) {
+      const pair = bestPair(3);
+      if (pair) {
+        setPlan(3, 1, pair.first, 'ticket');
+        setPlan(3, 2, pair.second, 'ticket', pair.first.score);
+      } else {
+        fillFirstSeat(3, 'ticket');
       }
-    } else if (lowCount > 0) {
-      const lowCandidates = remainingCandidates
-        .map(candidate => ({
-          ...candidate,
-          adjusted: candidate.score + personRotationPenalty(candidate.person.id, 4),
-        }))
-        .sort((a, b) => a.adjusted - b.adjusted || a.person.name.localeCompare(b.person.name, 'ru'));
-      const lowFirst = lowCandidates[0];
-      if (lowFirst) {
-        const firstSlot = freeWagonFourSlots[0];
-        if (firstSlot === 1 && freeWagonFourSlots.includes(2) && lowCount >= 2) {
-          setPlan(4, 1, lowFirst, true);
-          const companion = bestSingle(4, lowFirst.person.id);
-          if (companion) {
-            setPlan(4, 2, companion.candidate, false, lowFirst.score);
-          }
-        } else {
-          const existingPartner = assigned.find(item => item.wagon_no === 4 && item.slot === 2);
-          const partnerScore = existingPartner ? scoreById.get(existingPartner.conductor_id) ?? null : null;
-          setPlan(4, firstSlot, lowFirst, true, partnerScore);
-        }
+    } else {
+      if (!isOccupied(3, 1)) {
+        const partnerId = assigned.find(item => item.wagon_no === 3 && item.slot === 2)?.conductor_id;
+        const candidate = bestCandidate(3, 'ticket', partnerId);
+        if (candidate) setPlan(3, 1, candidate.candidate, 'ticket', partnerId ? conductorScore(partnerId) : null);
       }
+      if (!isOccupied(3, 2)) fillSecondSeat(3, 'ticket');
     }
 
-    // Other wagons remain available too. Recommendations appear only for places
-    // the operator has opened, so hidden optional second seats don't consume candidates.
-    visibleWagons
-      .filter(wagonNo => ![3, 1, 6, 4].includes(wagonNo))
-      .forEach(wagonNo => fillBalancedWagon(wagonNo));
+    // Online-sales wagons (4–6) can be staffed by the lower-rated available candidates.
+    [4, 5, 6].forEach(wagonNo => fillFirstSeat(wagonNo, 'online'));
 
-    // If wagon 4 still has an optional open second seat, fill it with a suitable partner.
-    if (expandedSlots[dayId + '-4'] && !isOccupied(4, 2) && !plan.has('4-2')) {
-      const partnerId = assigned.find(item => item.wagon_no === 4 && item.slot === 1)?.conductor_id ||
-        plan.get('4-1')?.person.id;
-      const match = bestSingle(4, partnerId);
-      if (match) setPlan(4, 2, match.candidate, true, partnerId ? scoreById.get(partnerId) ?? null : null);
+    // Optional second places are suggested only after the operator opens them:
+    // wagons 1, 2, and 6. Wagon 4 and 5 remain single-person wagons.
+    for (const wagonNo of optionalSecondWagons) {
+      if (expandedSlots[dayId + '-' + wagonNo]) {
+        fillSecondSeat(wagonNo, 'pair');
+      }
     }
 
     return plan;
+  };
+
+  const getExtraPlacementRecommendation = (dayId: string) => {
+    const dayAssignments = assignments.filter(item => item.practice_day_id === dayId);
+    const firstSeatsFilled = [1, 2, 3, 4, 5, 6].every(wagonNo =>
+      dayAssignments.some(item => item.wagon_no === wagonNo && item.slot === 1)
+    );
+    if (!firstSeatsFilled) return null;
+
+    const freeTargets = [3, 1, 2, 6].filter(wagonNo =>
+      !dayAssignments.some(item => item.wagon_no === wagonNo && item.slot === 2)
+    );
+    if (!freeTargets.length) return null;
+
+    const assignedIds = new Set(dayAssignments.map(item => item.conductor_id));
+    const remaining = conductors
+      .filter(person => !assignedIds.has(person.id))
+      .map(person => ({
+        person,
+        stats: stats.find(item => item.conductorId === person.id),
+      }))
+      .filter(item => item.stats && item.stats.recommendationScore !== null && Number.isFinite(item.stats.recommendationScore)) as Array<{
+        person: Conductor;
+        stats: ConductorStats;
+      }>;
+    if (!remaining.length) return null;
+
+    const dayDate = days.find(day => day.id === dayId)?.practice_date || '';
+    const pastAssignments = assignments.filter(item => {
+      const date = days.find(day => day.id === item.practice_day_id)?.practice_date || '';
+      return date && date < dayDate;
+    });
+    const pastDays = days.filter(day => day.practice_date < dayDate).sort((a, b) => b.practice_date.localeCompare(a.practice_date));
+    const previousShiftDate = pastDays.find(day =>
+      pastAssignments.some(item => item.practice_day_id === day.id)
+    )?.practice_date || '';
+    const scoreOf = (id: string) => Number(remaining.find(item => item.person.id === id)?.stats.recommendationScore ??
+      stats.find(item => item.conductorId === id)?.recommendationScore ?? 0);
+    const rotationPenalty = (personId: string, wagonNo: number) =>
+      pastAssignments.filter(item => item.conductor_id === personId && item.wagon_no === wagonNo).length * 30 +
+      (previousShiftDate && pastAssignments.some(item =>
+        item.conductor_id === personId &&
+        item.wagon_no === wagonNo &&
+        days.find(day => day.id === item.practice_day_id)?.practice_date === previousShiftDate
+      ) ? 25 : 0);
+    const pairRepeatPenalty = (firstId: string, secondId: string, wagonNo: number) => {
+      const key = [firstId, secondId].sort().join('|');
+      const previousPairDates = new Set<string>();
+      for (const item of pastAssignments) {
+        if (item.wagon_no !== wagonNo) continue;
+        const matched = pastAssignments.some(other =>
+          other.practice_day_id === item.practice_day_id &&
+          other.wagon_no === wagonNo &&
+          other.conductor_id !== item.conductor_id &&
+          [item.conductor_id, other.conductor_id].sort().join('|') === key
+        );
+        if (matched) previousPairDates.add(item.practice_day_id);
+      }
+      return previousPairDates.size * 28;
+    };
+
+    const scores = stats.map(item => item.recommendationScore).filter((value): value is number => value !== null && Number.isFinite(value));
+    const average = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : 70;
+    let best: { person: Conductor; wagonNo: number; pairAverage: number; adjusted: number } | null = null;
+    for (const wagonNo of freeTargets) {
+      const partnerId = dayAssignments.find(item => item.wagon_no === wagonNo && item.slot === 1)?.conductor_id;
+      if (!partnerId) continue;
+      for (const candidate of remaining) {
+        const candidateScore = Number(candidate.stats.recommendationScore);
+        const avg = (scoreOf(partnerId) + candidateScore) / 2;
+        const balancedQuality = avg * 0.8 + (100 - Math.abs(avg - average)) * 0.2;
+        const adjusted = balancedQuality -
+          rotationPenalty(candidate.person.id, wagonNo) -
+          pairRepeatPenalty(partnerId, candidate.person.id, wagonNo);
+        if (!best || adjusted > best.adjusted) {
+          best = { person: candidate.person, wagonNo, pairAverage: avg, adjusted };
+        }
+      }
+    }
+    return best;
   };
 
   const renderSelect = (day: PracticeDay, wagonNo: number, slot: number) => {
@@ -392,7 +452,7 @@ export default function PracticeAssignments({
       recommendation.stats.criteriaAverage !== null ? 'качества ' + Math.round(recommendation.stats.criteriaAverage) : '',
       recommendation.stats.gradeAverage !== null ? 'оценки ' + recommendation.stats.gradeAverage.toFixed(1) + '/10' : '',
       recommendation.stats.attendanceRate !== null ? 'посещаемость ' + Math.round(recommendation.stats.attendanceRate) + '%' : '',
-      recommendation.pairAverage !== null ? 'средний балл пары ' + Math.round(recommendation.pairAverage) : '',
+      recommendation.pairAverage !== null ? 'средний рейтинг пары ' + Math.round(recommendation.pairAverage) : '',
       recommendation.historyCount === 0 ? 'в этом вагоне ещё не был' : 'в этом вагоне ранее: ' + recommendation.historyCount + ' смен',
     ].filter(Boolean).join(' · ') : '';
 
@@ -422,7 +482,7 @@ export default function PracticeAssignments({
         {!assignment && recommendation && (
           <div className={'practice-recommendation ' + (recommendation.lowPriority ? 'practice-recommendation-low' : '')}>
             <div className="practice-recommendation-copy">
-              <span>{recommendation.lowPriority ? 'Низкий рейтинг · подбор для вагона 4' : [3, 1, 6].includes(wagonNo) ? 'Приоритетное назначение' : 'Рекомендация сайта'}</span>
+              <span>{recommendation.tier === 'ticket' ? 'Продажа обычных билетов · нужен опыт' : recommendation.tier === 'online' ? 'Онлайн-продажи' : 'Подбор второго проводника'}</span>
               <b>{recommendation.person.name} <strong>{Math.round(recommendation.stats.recommendationScore || 0)}/100</strong></b>
               {recommendationDetails && <small>{recommendationDetails}</small>}
             </div>
@@ -433,11 +493,36 @@ export default function PracticeAssignments({
         )}
         {!assignment && !recommendation && (
           <small className="practice-recommendation-empty">
-            {wagonNo === 4
-              ? 'Вагон 4 получает кандидата с более низким рейтингом после заполнения приоритетных мест.'
-              : 'Рекомендация появится, когда останется свободный кандидат с заполненной статистикой.'}
+            {wagonNo <= 3
+              ? 'Для продажи обычных билетов лучше подходит проводник с более высоким рейтингом.'
+              : 'Для онлайн-продаж подбирается свободный проводник из оставшихся.'}
           </small>
         )}
+      </div>
+    );
+  };
+
+  const renderExtraPlacementRecommendation = (day: PracticeDay) => {
+    const suggestion = getExtraPlacementRecommendation(day.id);
+    if (!suggestion) return null;
+    return (
+      <div className="practice-extra-suggestion">
+        <div className="practice-extra-copy">
+          <b>Все вагоны укомплектованы по одному проводнику</b>
+          <span>Следующее предложение: вагон {suggestion.wagonNo} — {suggestion.person.name}</span>
+          <small>Средний рейтинг пары: {Math.round(suggestion.pairAverage)}. Учитываются ротация по прошлым сменам и неповторение пары.</small>
+        </div>
+        <button
+          type="button"
+          className="practice-recommend-button"
+          disabled={saving}
+          onClick={() => {
+            setExpandedSlots(previous => ({ ...previous, [day.id + '-' + suggestion.wagonNo]: true }));
+            void saveAssignment(day.id, suggestion.wagonNo, 2, suggestion.person.id);
+          }}
+        >
+          Добавить в вагон {suggestion.wagonNo}
+        </button>
       </div>
     );
   };
@@ -447,7 +532,7 @@ export default function PracticeAssignments({
       <div className="section-heading">
         <div>
           <h3>Журнал назначений на практику</h3>
-          <p className="muted">Даты идут по горизонтали, вагоны — сверху вниз. В каждом вагоне можно назначить одного или двух проводников.</p>
+          <p className="muted">Вагоны 1–3 — обычные билеты, сюда сайт рекомендует проводников с более высоким рейтингом. Вагоны 4–6 — онлайн-продажи, сюда подбираются остальные свободные проводники.</p>
         </div>
         <span className="pill">{days.length} дат</span>
       </div>
@@ -482,6 +567,7 @@ export default function PracticeAssignments({
                         <Trash2 size={13} />
                       </button>
                     </div>
+                    {renderExtraPlacementRecommendation(day)}
                   </th>
                 ))}
               </tr>
@@ -507,20 +593,18 @@ export default function PracticeAssignments({
                       ) : (
                         <div className="practice-cell">
                           {renderSelect(day, wagonNo, 1)}
-                          {(priorityWagons as readonly number[]).includes(wagonNo) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) ? (
+                          {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] ? (
                             renderSelect(day, wagonNo, 2)
-                          ) : expandedSlots[day.id + '-' + wagonNo] ? (
-                            renderSelect(day, wagonNo, 2)
-                          ) : (
+                          ) : optionalSecondWagons.includes(wagonNo as 1 | 2 | 6) && assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1) ? (
                             <button
                               type="button"
                               className="practice-add-second"
-                              disabled={saving || !assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1)}
+                              disabled={saving}
                               onClick={() => setExpandedSlots(previous => ({ ...previous, [day.id + '-' + wagonNo]: true }))}
                             >
-                              <Plus size={12} /> Второго
+                              <Plus size={12} /> Добавить второго
                             </button>
-                          )}
+                          ) : null}
                         </div>
                       )}
                     </td>
@@ -540,6 +624,7 @@ export default function PracticeAssignments({
                 <Trash2 size={14} />
               </button>
             </div>
+            {renderExtraPlacementRecommendation(day)}
             <div className="practice-mobile-lnps">
               <strong>ЛНП</strong>
               <div>
@@ -557,20 +642,18 @@ export default function PracticeAssignments({
                   </div>
                   <div className="practice-mobile-slot">
                     <small>Второй проводник</small>
-                    {(priorityWagons as readonly number[]).includes(wagonNo) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) ? (
+                    {defaultSecondWagons.includes(wagonNo as 3) || assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 2) || expandedSlots[day.id + '-' + wagonNo] ? (
                       renderSelect(day, wagonNo, 2)
-                    ) : expandedSlots[day.id + '-' + wagonNo] ? (
-                      renderSelect(day, wagonNo, 2)
-                    ) : (
+                    ) : optionalSecondWagons.includes(wagonNo as 1 | 2 | 6) && assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1) ? (
                       <button
                         type="button"
                         className="practice-add-second"
-                        disabled={saving || !assignments.some(item => item.practice_day_id === day.id && item.wagon_no === wagonNo && item.slot === 1)}
+                        disabled={saving}
                         onClick={() => setExpandedSlots(previous => ({ ...previous, [day.id + '-' + wagonNo]: true }))}
                       >
                         <Plus size={12} /> Добавить второго
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               ))}
@@ -578,7 +661,7 @@ export default function PracticeAssignments({
           </article>
         ))}
       </div>
-      <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. По умолчанию открыты вагоны 1–6. Седьмой добавляется отдельной кнопкой; в каждом вагоне можно назначить одного или двух проводников.</p>
+      <p className="practice-legend"><b>Вагон 0</b> автоматически показывает оба аккаунта ЛНП. По умолчанию по два места только в вагоне 3. Второго проводника вручную можно добавить в вагоны 1, 2 и 6; в вагонах 4 и 5 остаётся по одному месту.</p>
     </section>
   );
 }
