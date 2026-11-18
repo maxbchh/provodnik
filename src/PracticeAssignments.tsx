@@ -58,7 +58,7 @@ export default function PracticeAssignments({
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const priorityWagons = [3, 1, 6] as const;
-  const visibleWagons = showSeventhWagon ? [3, 1, 6, 2, 4, 5, 7] : [3, 1, 6, 2, 4, 5];
+  const visibleWagons = showSeventhWagon ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5, 6];
   const reload = async () => {
     setLoading(true);
     setError('');
@@ -311,11 +311,6 @@ export default function PracticeAssignments({
       {notice && <div className="alert success">{notice}</div>}
 
       {canShowSeventhWagonControl(showSeventhWagon, setShowSeventhWagon)}
-      <div className="practice-priority-banner">
-        <b>Приоритет распределения: по 2 проводника в каждый вагон</b>
-        <div><span className="practice-priority-chip main">1 · Вагон 3 — штабной</span><span className="practice-priority-chip">2 · Вагон 1</span><span className="practice-priority-chip">3 · Вагон 6</span></div>
-        <small>Если проводников не хватает, сначала полностью заполняется штабной вагон 3, затем вагон 1 и после него вагон 6. Остальные вагоны доступны для ручного назначения.</small>
-      </div>
       {loading ? <div className="empty">Загружаем журнал назначений…</div> : days.length === 0 ? (
         <div className="empty">Пока нет дат практики. Добавь первую дату — она появится отдельной колонкой.</div>
       ) : (
@@ -341,7 +336,7 @@ export default function PracticeAssignments({
                 <tr key={wagonNo}>
                   <th>
                     <span className="practice-wagon-number">{wagonNo}</span>
-                    <small>{wagonNo === 0 ? 'ЛНП' : wagonNo === 3 ? 'штабной · обычные билеты · приоритет №1' : wagonNo <= 2 ? 'обычные билеты' : wagonNo <= 6 ? 'онлайн-билеты' : 'дополнительный вагон'}</small>
+                    <small>{wagonNo === 0 ? 'ЛНП' : wagonNo === 3 ? 'штабной · обычные билеты' : wagonNo <= 2 ? 'обычные билеты' : wagonNo <= 6 ? 'онлайн-билеты' : 'дополнительный вагон'}</small>
                   </th>
                   {days.map(day => (
                     <td key={day.id}>
@@ -400,7 +395,7 @@ export default function PracticeAssignments({
             <div className="practice-mobile-wagons">
               {visibleWagons.map(wagonNo => (
                 <div className="practice-mobile-wagon" key={wagonNo}>
-                  <div className="practice-mobile-wagon-title"><span className="practice-mobile-wagon-name">Вагон {wagonNo}{wagonNo === 3 ? ' · Штабной' : ''}</span><span className="practice-ticket-type">{wagonNo <= 3 ? 'Обычные билеты' : wagonNo <= 6 ? 'Онлайн-билеты' : 'Дополнительный вагон'}</span>{(priorityWagons as readonly number[]).includes(wagonNo) ? <span>Приоритет</span> : null}</div>
+                  <div className="practice-mobile-wagon-title"><span className="practice-mobile-wagon-name">Вагон {wagonNo}{wagonNo === 3 ? ' · Штабной' : ''}</span><span className="practice-ticket-type">{wagonNo <= 3 ? 'Обычные билеты' : wagonNo <= 6 ? 'Онлайн-билеты' : 'Дополнительный вагон'}</span></div>
                   <div className="practice-mobile-slot">
                     <small>Первый проводник</small>
                     {renderSelect(day, wagonNo, 1)}
