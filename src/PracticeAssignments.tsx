@@ -211,7 +211,7 @@ export default function PracticeAssignments({
       const shiftsWorked = new Set(personalHistory.map(item => item.practice_day_id)).size;
       if (shiftsWorked < 2 || !personalHistory.length) return 0;
       const share = personalHistory.filter(item => item.wagon_no === wagonNo).length / personalHistory.length;
-      return share * 32 * Math.min(1, shiftsWorked / 4);
+      return share * 58 * Math.min(1, shiftsWorked / 3);
     };
     const rotationPenalty = (personId: string, wagonNo: number) =>
       (workedThisWagonLastShift(personId, wagonNo) ? 10 : 0) +
@@ -422,7 +422,7 @@ export default function PracticeAssignments({
       const shiftsWorked = new Set(personalHistory.map(item => item.practice_day_id)).size;
       if (shiftsWorked < 2 || !personalHistory.length) return 0;
       const share = personalHistory.filter(item => item.wagon_no === wagonNo).length / personalHistory.length;
-      return share * 32 * Math.min(1, shiftsWorked / 4);
+      return share * 58 * Math.min(1, shiftsWorked / 3);
     };
     const rotationPenalty = (personId: string, wagonNo: number) =>
       (previousShiftDate && pastAssignments.some(item =>
