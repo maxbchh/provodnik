@@ -447,6 +447,7 @@ input[type=file]{padding:9px;background:#fbfcfe}
 .rating-person-name{display:flex;align-items:center;gap:9px;min-width:0}
 .rating-person-name b{font-size:13px;color:#344357;overflow-wrap:anywhere}
 .rating-manual-field{display:grid;gap:5px;color:#637186;font-size:10px;font-weight:600}
+.rating-average-value{display:block;min-width:100px;padding:8px 12px;border:1px solid #dfe6ef;border-radius:9px;background:#f7f9fc;color:#25364b;font-size:18px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums}
 .rating-manual-input{width:100px;text-align:center;font-size:13px;font-weight:700}
 .rating-criteria-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #eef1f4}
 .rating-criterion-field .rating-manual-input{width:100%}
