@@ -460,3 +460,15 @@ input[type=file]{padding:9px;background:#fbfcfe}
   .rating-criteria-form .primary{width:100%}
   .rating-manual-input{width:100%}
 }
+
+
+/* Rating colors follow the overall score thresholds: >80 green, >50 yellow, otherwise red. */
+.rating-average-value.rating-green{color:#16a34a!important;}
+.rating-average-value.rating-yellow{color:#d97706!important;}
+.rating-average-value.rating-red{color:#dc2626!important;}
+.practice-recommendations{margin:18px 0;padding:16px;border:1px solid var(--border,#d8dee8);border-radius:16px;background:var(--surface,#fff);}
+.practice-recommendations h4{margin:0 0 6px;font-size:1rem;}
+.practice-recommendation-date{padding:12px 0;border-top:1px solid var(--border,#d8dee8);}
+.practice-recommendation-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:10px;}
+.practice-recommendation-item{display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:12px;background:var(--surface-2,#f4f6fa);font-size:.9rem;}
+.practice-recommendation-item span{overflow-wrap:anywhere;}
