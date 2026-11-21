@@ -40,10 +40,12 @@ export default function PracticeAssignments({
   conductors,
   lnps,
   currentUserId,
+  ratings,
 }: {
   conductors: Conductor[];
   lnps: Lnp[];
   currentUserId: string;
+  ratings: Array<{ conductorId: string; score: number | null }>;
 }) {
   const [days, setDays] = useState<PracticeDay[]>([]);
   const [assignments, setAssignments] = useState<PracticeAssignment[]>([]);
@@ -118,6 +120,20 @@ export default function PracticeAssignments({
     setError('');
     setNotice('');
 
+    if (conductorId) {
+      const selected = conductors.find(person => person.id === conductorId);
+      const surname = selected?.name.toLocaleLowerCase('ru-RU') || '';
+      const isNali = surname.includes('наливайко');
+      const isSpecialDate = days.find(item => item.id === dayId)?.practice_date === '2026-12-25';
+      if (isNali && wagonNo !== 4 && !(isSpecialDate && wagonNo === 3)) {
+        setError('Наливайко назначается только в 4-й вагон. Исключение — 25 декабря: 3-й вагон вместе с Бурундуковым.');
+        return;
+      }
+      if (isNali && wagonNo === 4 && slot !== 1) {
+        setError('Наливайко в 4-м вагоне должен быть один.');
+        return;
+      }
+    }
     if (!conductorId) {
       if (!old) return;
       const { error: deleteError } = await supabase.from('practice_assignments').delete().eq('id', old.id);
@@ -177,14 +193,17 @@ export default function PracticeAssignments({
       >
         <option value="">Не назначен</option>
         {conductors.map(conductor => {
+          const nali = conductor.name.toLocaleLowerCase('ru-RU').includes('наливайко');
+          const specialDate = day.practice_date === '2026-12-25';
+          const forbiddenNali = nali && wagonNo !== 4 && !(specialDate && wagonNo === 3);
           const usedElsewhere = assignments.some(item =>
             item.practice_day_id === day.id &&
             item.conductor_id === conductor.id &&
             !(item.wagon_no === wagonNo && item.slot === slot)
           );
           return (
-            <option key={conductor.id} value={conductor.id} disabled={usedElsewhere}>
-              {conductor.name}{usedElsewhere ? ' · уже назначен' : ''}
+            <option key={conductor.id} value={conductor.id} disabled={usedElsewhere || forbiddenNali || (nali && wagonNo === 4 && slot === 2)}>
+              {conductor.name}{forbiddenNali ? ' · не рекомендуется в этот вагон' : usedElsewhere ? ' · уже назначен' : nali && wagonNo === 4 ? ' · только один в 4-м' : ''}
             </option>
           );
         })}
@@ -202,6 +221,38 @@ export default function PracticeAssignments({
         <span className="pill">{days.length} дат</span>
       </div>
 
+      <section className="practice-recommendations">
+        <h4>Рекомендации по рейтингу</h4>
+        <p className="muted">Подбор учитывает средний балл, хвостовой 6-й вагон и специальные ограничения. Это подсказки — назначения сохраняются вручную.</p>
+        {days.filter(day => day.practice_date >= localDate()).slice(0, 4).map(day => {
+          const ranked = conductors.map(person => ({ person, score: ratings.find(item => item.conductorId === person.id)?.score ?? -1 }))
+            .sort((a,b) => b.score-a.score || a.person.name.localeCompare(b.person.name,'ru'));
+          const nali = ranked.find(item => item.person.name.toLocaleLowerCase('ru-RU').includes('наливайко'));
+          const burundukov = ranked.find(item => item.person.name.toLocaleLowerCase('ru-RU').includes('бурундуков'));
+          const vanzonok = ranked.find(item => item.person.name.toLocaleLowerCase('ru-RU').includes('ванзонок'));
+          const special = day.practice_date === '2026-12-25';
+          const used = new Set<string>();
+          const take = (count: number, excludeNali = true) => ranked.filter(item => !used.has(item.person.id) && (!excludeNali || !item.person.name.toLocaleLowerCase('ru-RU').includes('наливайко'))).slice(0,count);
+          const pick = (wagon: number) => {
+            if (wagon === 3 && special && nali && burundukov) { used.add(nali.person.id); used.add(burundukov.person.id); return [nali,burundukov]; }
+            if (wagon === 4 && nali) { used.add(nali.person.id); return [nali]; }
+            if (wagon === 1 && vanzonok && vanzonok.score > 80 && !used.has(vanzonok.person.id)) { used.add(vanzonok.person.id); const mate=take(1); mate.forEach(x=>used.add(x.person.id)); return [vanzonok,...mate]; }
+            const picks=take(2); picks.forEach(x=>used.add(x.person.id)); return picks;
+          };
+          return <div className="practice-recommendation-date" key={day.id}>
+            <b>{formatDate(day.practice_date)}</b>
+            <div className="practice-recommendation-grid">
+              {[1,2,3,4,5,6].map(wagon => {
+                const picks=pick(wagon);
+                return <div className="practice-recommendation-item" key={wagon}>
+                  <strong>{wagon}-й вагон{wagon===6?' · хвост':''}</strong>
+                  <span>{picks.length ? picks.map(item => item.person.name + (item.score >= 0 ? ' ('+Math.round(item.score)+'/100)' : '')).join(' + ') : 'Нет данных'}</span>
+                </div>;
+              })}
+            </div>
+          </div>;
+        })}
+      </section>
       <form className="practice-date-form" onSubmit={addPracticeDate}>
         <label>
           Дата практики
