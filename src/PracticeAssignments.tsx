@@ -510,7 +510,7 @@ export default function PracticeAssignments({
           <div className="practice-recommendation">
             <div className="practice-recommendation-copy">
               <span>{recommendation.tier === 'ticket' ? 'Продажа обычных билетов · нужен опыт' : recommendation.tier === 'online' ? 'Онлайн-продажи' : 'Подбор второго проводника'}</span>
-              <b>{recommendation.person.name} <strong className={recommendation.stats.recommendationScore > 80 ? 'rating-badge-high' : recommendation.stats.recommendationScore > 50 ? 'rating-badge-medium' : 'rating-badge-low'}>{Math.round(recommendation.stats.recommendationScore ?? 0)}/100</strong></b>
+              <b>{recommendation.person.name} <strong className={(recommendation.stats.recommendationScore ?? 0) > 80 ? 'rating-badge-high' : (recommendation.stats.recommendationScore ?? 0) > 50 ? 'rating-badge-medium' : 'rating-badge-low'}>{Math.round(recommendation.stats.recommendationScore ?? 0)}/100</strong></b>
               {recommendationDetails && <small>{recommendationDetails}</small>}
             </div>
             <button type="button" className="practice-recommend-button" disabled={saving} onClick={() => void saveAssignment(day.id, wagonNo, slot, recommendation.person.id)}>
