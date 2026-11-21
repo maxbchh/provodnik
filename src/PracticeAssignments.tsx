@@ -235,7 +235,7 @@ export default function PracticeAssignments({
           const take = (count: number, excludeNali = true) => ranked.filter(item => !used.has(item.person.id) && (!excludeNali || !item.person.name.toLocaleLowerCase('ru-RU').includes('наливайко'))).slice(0,count);
           const pick = (wagon: number) => {
             if (wagon === 3 && special && nali && burundukov) { used.add(nali.person.id); used.add(burundukov.person.id); return [nali,burundukov]; }
-            if (wagon === 4 && nali) { used.add(nali.person.id); return [nali]; }
+            if (wagon === 4 && nali && !used.has(nali.person.id)) { used.add(nali.person.id); return [nali]; }
             if (wagon === 1 && vanzonok && vanzonok.score > 80 && !used.has(vanzonok.person.id)) { used.add(vanzonok.person.id); const mate=take(1); mate.forEach(x=>used.add(x.person.id)); return [vanzonok,...mate]; }
             const picks=take(2); picks.forEach(x=>used.add(x.person.id)); return picks;
           };
