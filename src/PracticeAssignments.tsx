@@ -44,7 +44,7 @@ export default function PracticeAssignments({
   stats,
 }: {
   conductors: Conductor[];
-  type Lnp = { id: string; display_name: string };
+  lnps: Lnp[];
   currentUserId: string;
   stats: ConductorStats[];
 }) {
