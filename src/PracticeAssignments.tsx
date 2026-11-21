@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { CalendarDays, Plus, Trash2, Users } from 'lucide-react';
 import { supabase } from './supabase';
 
-type Conductor = { id: string; name: string };
+type Conductor = { id: string; name: string; isSeniorConductor?: boolean };
 type ConductorStats = {conductorId:string;recommendationScore:number|null;rating:number|null;criteriaAverage:number|null;gradeAverage:number|null;attendanceRate:number|null;};
 type Lnp = { id: string; display_name: string };
 type PracticeDay = { id: string; practice_date: string };
@@ -44,7 +44,7 @@ export default function PracticeAssignments({
   stats,
 }: {
   conductors: Conductor[];
-  lnps: Lnp[];
+  type Lnp = { id: string; display_name: string };
   currentUserId: string;
   stats: ConductorStats[];
 }) {
@@ -249,6 +249,7 @@ export default function PracticeAssignments({
       tier: 'ticket' | 'online' | 'pair';
       historyCount: number;
       pairAverage: number | null;
+      isSeniorConductor: boolean;
     }>();
     const isOccupied = (wagonNo: number, slot: number) =>
       assigned.some(item => item.wagon_no === wagonNo && item.slot === slot);
@@ -268,6 +269,7 @@ export default function PracticeAssignments({
         tier,
         historyCount: wagonHistoryCount(candidate.person.id, wagonNo),
         pairAverage: partnerScore === null ? null : pairAverage(candidate.score, partnerScore),
+        isSeniorConductor: !!candidate.person.isSeniorConductor,
       });
       assignedIds.add(candidate.person.id);
     };
@@ -293,7 +295,8 @@ export default function PracticeAssignments({
               ? (100 - candidate.score) * 0.12
               : (100 - candidate.score) * 0.78
             : pairScore;
-          const adjusted = roleScore + wagonPreference - rotation - repeatPairPenalty;
+          const seniorBonus = candidate.person.isSeniorConductor && [3, 1, 6].includes(wagonNo) ? 18 : 0;
+          const adjusted = roleScore + wagonPreference + seniorBonus - rotation - repeatPairPenalty;
           return { candidate, adjusted };
         })
         .sort((a, b) =>
@@ -506,6 +509,7 @@ export default function PracticeAssignments({
             );
           })}
         </select>
+        {assignment && <button type="button" className="practice-clear-assignment" disabled={saving} onClick={() => void saveAssignment(day.id, wagonNo, slot, '')}>Очистить назначение</button>}
         {!assignment && recommendation && (
           <div className="practice-recommendation">
             <div className="practice-recommendation-copy">
@@ -655,7 +659,7 @@ export default function PracticeAssignments({
             <div className="practice-mobile-lnps">
               <strong>ЛНП</strong>
               <div>
-                {lnps.slice(0, 2).map(lnp => <span key={lnp.id}>{lnp.display_name}</span>)}
+                {lnps.slice(0, 2).map(lnp => <span key={lnp.id}>{lnp.display_name}{lnp.is_senior_conductor?' · ★ Старший проводник':''}</span>)}
                 {lnps.length < 2 && <small>Ожидается второй ЛНП</small>}
               </div>
             </div>
