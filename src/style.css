@@ -572,3 +572,11 @@ input[type=file]{padding:9px;background:#fbfcfe}
   .practice-extra-suggestion{margin:10px 0}
   .practice-extra-suggestion .practice-recommend-button{width:100%;justify-content:center}
 }
+
+
+/* Senior conductor marker and explicit assignment clearing */
+.senior-conductor-badge{display:inline-flex;align-items:center;gap:5px;width:max-content;margin-top:5px;padding:4px 8px;border-radius:999px;background:rgba(202,153,55,.14);color:#a97919;font-size:11px;font-weight:700}
+.senior-toggle{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.senior-toggle.is-active{border-color:rgba(190,139,38,.45);background:rgba(202,153,55,.13);color:#9a6b13}
+.practice-clear-assignment{display:inline-flex;align-items:center;justify-content:center;margin-top:6px;padding:6px 9px;border:1px solid var(--border,rgba(120,130,150,.22));border-radius:9px;background:transparent;color:var(--muted,#777);font-size:11px;cursor:pointer}
+.practice-clear-assignment:disabled{opacity:.5;cursor:default}
