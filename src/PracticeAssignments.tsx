@@ -5,7 +5,7 @@ import { supabase } from './supabase';
 
 type Conductor = { id: string; name: string; isSeniorConductor?: boolean };
 type ConductorStats = {conductorId:string;recommendationScore:number|null;rating:number|null;criteriaAverage:number|null;gradeAverage:number|null;attendanceRate:number|null;};
-type Lnp = { id: string; display_name: string };
+type Lnp = { id: string; display_name: string; is_senior_conductor?: boolean };
 type PracticeDay = { id: string; practice_date: string };
 type PracticeAssignment = {
   id: string;
@@ -315,7 +315,9 @@ export default function PracticeAssignments({
           const adjusted =
             pairQuality(first.score, second.score) +
             wagonPreferenceBonus(first.person.id, wagonNo) +
-            wagonPreferenceBonus(second.person.id, wagonNo) -
+            wagonPreferenceBonus(second.person.id, wagonNo) +
+            (first.person.isSeniorConductor && [3, 1, 6].includes(wagonNo) ? 18 : 0) +
+            (second.person.isSeniorConductor && [3, 1, 6].includes(wagonNo) ? 18 : 0) -
             rotationPenalty(first.person.id, wagonNo) -
             rotationPenalty(second.person.id, wagonNo) -
             pairHistoryCount(first.person.id, second.person.id, wagonNo) * 28;
